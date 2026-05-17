@@ -15,9 +15,7 @@ class SprayTrackerApp extends StatelessWidget {
         brightness: Brightness.light,
         primaryColor: AppColor.primary,
         scaffoldBackgroundColor: AppColor.background,
-        textTheme: CupertinoTextThemeData(
-          textStyle: TextStyle(color: AppColor.ink, fontSize: 16),
-        ),
+        textTheme: CupertinoTextThemeData(textStyle: TextStyle(color: AppColor.ink, fontSize: 16)),
       ),
       home: SprayTrackerHome(),
     );
@@ -37,6 +35,8 @@ class AppColor {
   static const warningSoft = Color(0xFFFFF0D8);
   static const danger = Color(0xFFB84B44);
   static const dangerSoft = Color(0xFFF9E6E3);
+  static const blue = Color(0xFF2D6073);
+  static const blueSoft = Color(0xFFE5F1F4);
   static const earth = Color(0xFF7A5230);
   static const path = Color(0xFFB8B4AA);
 }
@@ -52,10 +52,21 @@ class GardenBed {
   final Rect bounds;
 }
 
+class SprayTarget {
+  const SprayTarget({required this.id, required this.label, required this.shortLabel, required this.description, required this.mark, required this.color, required this.softColor});
+  final String id;
+  final String label;
+  final String shortLabel;
+  final String description;
+  final String mark;
+  final Color color;
+  final Color softColor;
+}
+
 class SpraySuggestion {
-  const SpraySuggestion({required this.name, required this.category, required this.target, required this.whenToUse});
+  const SpraySuggestion({required this.name, required this.targetId, required this.target, required this.whenToUse});
   final String name;
-  final String category;
+  final String targetId;
   final String target;
   final String whenToUse;
 }
@@ -81,11 +92,12 @@ class CropProfile {
 }
 
 class SprayProduct {
-  const SprayProduct({required this.id, required this.name, required this.type, required this.withholdingDays});
+  const SprayProduct({required this.id, required this.name, required this.type, required this.withholdingDays, required this.targetIds});
   final int id;
   final String name;
   final String type;
   final int withholdingDays;
+  final List<String> targetIds;
 }
 
 class SprayRecord {
@@ -93,6 +105,8 @@ class SprayRecord {
     required this.id,
     required this.bedNumbers,
     required this.product,
+    required this.targetId,
+    required this.targetLabel,
     required this.reason,
     required this.notes,
     required this.sprayedAt,
@@ -102,6 +116,8 @@ class SprayRecord {
   final int id;
   final List<int> bedNumbers;
   final String product;
+  final String targetId;
+  final String targetLabel;
   final String reason;
   final String notes;
   final DateTime sprayedAt;
@@ -137,6 +153,13 @@ const gardenBeds = [
   GardenBed(17, Rect.fromLTWH(.04, .01, .91, .04)),
 ];
 
+const sprayTargets = [
+  SprayTarget(id: 'pest', label: 'Pest pressure', shortLabel: 'Pest', description: 'Visible insects, mites, chewing damage, or sticky residue.', mark: 'P', color: AppColor.danger, softColor: AppColor.dangerSoft),
+  SprayTarget(id: 'fungus', label: 'Fungal pressure', shortLabel: 'Fungus', description: 'Spots, mildew, rust, blight risk, or humid disease weather.', mark: 'F', color: AppColor.blue, softColor: AppColor.blueSoft),
+  SprayTarget(id: 'prevent', label: 'Preventative', shortLabel: 'Prevent', description: 'No outbreak yet. Reduce risk before weather or pest pressure builds.', mark: 'PR', color: AppColor.warning, softColor: AppColor.warningSoft),
+  SprayTarget(id: 'maintain', label: 'Maintenance', shortLabel: 'Maintain', description: 'Plant support, stress recovery, pruning, airflow, and crop care.', mark: 'M', color: AppColor.primary, softColor: AppColor.primarySoft),
+];
+
 const cropProfiles = [
   CropProfile(
     name: 'Tomatoes',
@@ -146,9 +169,10 @@ const cropProfiles = [
     preventative: ['Check leaf undersides weekly', 'Avoid wetting leaves late in the day', 'Prune lower leaves for airflow'],
     maintenance: ['Stake and prune regularly', 'Remove diseased leaves quickly', 'Keep mulch off stems'],
     suggestions: [
-      SpraySuggestion(name: 'Neem Oil', category: 'Pest', target: 'Aphids, mites, whitefly', whenToUse: 'Use only when active pest pressure is seen.'),
-      SpraySuggestion(name: 'Copper Spray', category: 'Fungus', target: 'Blight and leaf spot risk', whenToUse: 'Use preventatively during wet, humid periods if label allows.'),
-      SpraySuggestion(name: 'Seaweed Tonic', category: 'Maintenance', target: 'Plant stress support', whenToUse: 'Use after heat, transplant stress, or heavy fruiting.'),
+      SpraySuggestion(name: 'Neem Oil', targetId: 'pest', target: 'Aphids, mites, whitefly', whenToUse: 'Use only when active pest pressure is seen.'),
+      SpraySuggestion(name: 'Copper Spray', targetId: 'fungus', target: 'Blight and leaf spot risk', whenToUse: 'Use during wet, humid disease pressure if label allows.'),
+      SpraySuggestion(name: 'Copper Spray', targetId: 'prevent', target: 'Blight prevention', whenToUse: 'Consider before extended wet weather if label allows.'),
+      SpraySuggestion(name: 'Seaweed Tonic', targetId: 'maintain', target: 'Plant stress support', whenToUse: 'Use after heat, transplant stress, or heavy fruiting.'),
     ],
   ),
   CropProfile(
@@ -159,9 +183,9 @@ const cropProfiles = [
     preventative: ['Use netting where possible', 'Thin crowded plants', 'Keep foliage as dry as practical'],
     maintenance: ['Harvest outer leaves often', 'Remove damaged leaves', 'Improve airflow between rows'],
     suggestions: [
-      SpraySuggestion(name: 'Neem Oil', category: 'Pest', target: 'Aphids and soft-bodied insects', whenToUse: 'Use carefully when pests are present; avoid spraying stressed leaves.'),
-      SpraySuggestion(name: 'Copper Spray', category: 'Fungus', target: 'Downy mildew and leaf spot pressure', whenToUse: 'Use only when disease pressure is high and label permits edible greens.'),
-      SpraySuggestion(name: 'Seaweed Tonic', category: 'Maintenance', target: 'Growth support', whenToUse: 'Use lightly after picking or weather stress.'),
+      SpraySuggestion(name: 'Neem Oil', targetId: 'pest', target: 'Aphids and soft-bodied insects', whenToUse: 'Use carefully when pests are present; avoid spraying stressed leaves.'),
+      SpraySuggestion(name: 'Copper Spray', targetId: 'fungus', target: 'Downy mildew and leaf spot pressure', whenToUse: 'Use only when disease pressure is high and label permits edible greens.'),
+      SpraySuggestion(name: 'Seaweed Tonic', targetId: 'maintain', target: 'Growth support', whenToUse: 'Use lightly after picking or weather stress.'),
     ],
   ),
   CropProfile(
@@ -172,8 +196,9 @@ const cropProfiles = [
     preventative: ['Monitor thrips in dry weather', 'Avoid excess nitrogen', 'Keep weeds down'],
     maintenance: ['Water consistently', 'Remove badly rusted leaves', 'Rotate allium beds yearly'],
     suggestions: [
-      SpraySuggestion(name: 'Neem Oil', category: 'Pest', target: 'Thrips suppression', whenToUse: 'Use when thrips are visible and plants are not drought stressed.'),
-      SpraySuggestion(name: 'Copper Spray', category: 'Fungus', target: 'Rust and downy mildew pressure', whenToUse: 'Use when humid weather and rust symptoms appear, if label allows.'),
+      SpraySuggestion(name: 'Neem Oil', targetId: 'pest', target: 'Thrips suppression', whenToUse: 'Use when thrips are visible and plants are not drought stressed.'),
+      SpraySuggestion(name: 'Copper Spray', targetId: 'fungus', target: 'Rust and downy mildew pressure', whenToUse: 'Use when humid weather and rust symptoms appear, if label allows.'),
+      SpraySuggestion(name: 'Copper Spray', targetId: 'prevent', target: 'Rust risk reduction', whenToUse: 'Consider before humid spells if allium label use is allowed.'),
     ],
   ),
   CropProfile(
@@ -184,9 +209,9 @@ const cropProfiles = [
     preventative: ['Keep fruit off wet soil', 'Improve cane airflow', 'Net fruit before ripening'],
     maintenance: ['Remove old fruit', 'Prune crowded canes', 'Remove infected canes'],
     suggestions: [
-      SpraySuggestion(name: 'Neem Oil', category: 'Pest', target: 'Aphids and mites', whenToUse: 'Use before flowering or after harvest if label allows.'),
-      SpraySuggestion(name: 'Copper Spray', category: 'Fungus', target: 'Cane disease pressure', whenToUse: 'Best considered in dormant or label-approved windows.'),
-      SpraySuggestion(name: 'Seaweed Tonic', category: 'Maintenance', target: 'Post-harvest recovery', whenToUse: 'Use after pruning or harvest stress.'),
+      SpraySuggestion(name: 'Neem Oil', targetId: 'pest', target: 'Aphids and mites', whenToUse: 'Use before flowering or after harvest if label allows.'),
+      SpraySuggestion(name: 'Copper Spray', targetId: 'fungus', target: 'Cane disease pressure', whenToUse: 'Best considered in dormant or label-approved windows.'),
+      SpraySuggestion(name: 'Seaweed Tonic', targetId: 'maintain', target: 'Post-harvest recovery', whenToUse: 'Use after pruning or harvest stress.'),
     ],
   ),
   CropProfile(
@@ -197,8 +222,8 @@ const cropProfiles = [
     preventative: ['Avoid overwatering', 'Use fine mesh for carrot fly pressure', 'Rotate beds between seasons'],
     maintenance: ['Thin early', 'Keep soil evenly moist', 'Avoid heavy fresh manure'],
     suggestions: [
-      SpraySuggestion(name: 'Neem Oil', category: 'Pest', target: 'Leaf aphids', whenToUse: 'Use only for visible above-ground pest pressure.'),
-      SpraySuggestion(name: 'Seaweed Tonic', category: 'Maintenance', target: 'Root crop establishment', whenToUse: 'Use lightly during early growth or after stress.'),
+      SpraySuggestion(name: 'Neem Oil', targetId: 'pest', target: 'Leaf aphids', whenToUse: 'Use only for visible above-ground pest pressure.'),
+      SpraySuggestion(name: 'Seaweed Tonic', targetId: 'maintain', target: 'Root crop establishment', whenToUse: 'Use lightly during early growth or after stress.'),
     ],
   ),
 ];
@@ -212,6 +237,7 @@ String dateLabel(DateTime date) => '${date.day}/${date.month}/${date.year}';
 String shortDate(DateTime date) => '${date.day} ${monthName(date.month)}';
 String monthName(int month) => const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][month - 1];
 Rect scaleRect(Rect r, Size size) => Rect.fromLTWH(r.left * size.width, r.top * size.height, r.width * size.width, r.height * size.height);
+SprayTarget targetById(String id) => sprayTargets.firstWhere((target) => target.id == id, orElse: () => sprayTargets.first);
 
 extension FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
@@ -229,6 +255,7 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
   int selectedBed = 4;
   int nextRecordId = 1;
   int nextProductId = 4;
+  String selectedTargetId = 'pest';
   Set<int> selectedBeds = {4};
   String? actionMessage;
 
@@ -240,9 +267,9 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
   void initState() {
     super.initState();
     products = const [
-      SprayProduct(id: 1, name: 'Neem Oil', type: 'Pest control', withholdingDays: 3),
-      SprayProduct(id: 2, name: 'Copper Spray', type: 'Fungicide', withholdingDays: 7),
-      SprayProduct(id: 3, name: 'Seaweed Tonic', type: 'Plant tonic', withholdingDays: 1),
+      SprayProduct(id: 1, name: 'Neem Oil', type: 'Pest control', withholdingDays: 3, targetIds: ['pest']),
+      SprayProduct(id: 2, name: 'Copper Spray', type: 'Fungicide', withholdingDays: 7, targetIds: ['fungus', 'prevent']),
+      SprayProduct(id: 3, name: 'Seaweed Tonic', type: 'Plant tonic', withholdingDays: 1, targetIds: ['maintain', 'prevent']),
     ].toList();
   }
 
@@ -253,7 +280,7 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
     final remaining = latest.safeDate.difference(DateTime.now()).inDays + 1;
     return BedStatus(
       label: waiting ? 'Wait' : 'Safe',
-      summary: '${latest.product} · safe ${shortDate(latest.safeDate)}',
+      summary: '${latest.product} · ${latest.targetLabel} · safe ${shortDate(latest.safeDate)}',
       daysRemaining: waiting ? remaining.clamp(1, 999).toInt() : 0,
     );
   }
@@ -267,24 +294,27 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
   void changeTab(int index) => setState(() => currentTab = index);
   void selectBedOnMap(int bedNumber) => setState(() => selectedBed = bedNumber);
 
-  void openLog(Set<int> beds) {
+  void openLog(Set<int> beds, {String? targetId}) {
     setState(() {
       selectedBeds = beds.isEmpty ? {selectedBed} : {...beds};
+      if (targetId != null) selectedTargetId = targetId;
       currentTab = 2;
     });
   }
 
-  void saveSpray({required Set<int> beds, required SprayProduct product, required String reason, required String notes, required int withholdingDays}) {
+  void saveSpray({required Set<int> beds, required SprayProduct product, required String targetId, required String reason, required String notes, required int withholdingDays}) {
     if (beds.isEmpty) {
       setState(() => actionMessage = 'Choose at least one bed before saving.');
       return;
     }
+    final target = targetById(targetId);
     final sortedBeds = beds.toList()..sort();
     setState(() {
-      records.insert(0, SprayRecord(id: nextRecordId++, bedNumbers: sortedBeds, product: product.name, reason: reason.trim().isEmpty ? 'General spray' : reason.trim(), notes: notes.trim(), sprayedAt: DateTime.now(), withholdingDays: withholdingDays));
+      records.insert(0, SprayRecord(id: nextRecordId++, bedNumbers: sortedBeds, product: product.name, targetId: target.id, targetLabel: target.shortLabel, reason: reason.trim().isEmpty ? target.label : reason.trim(), notes: notes.trim(), sprayedAt: DateTime.now(), withholdingDays: withholdingDays));
       selectedBeds = sortedBeds.toSet();
       selectedBed = sortedBeds.first;
-      actionMessage = 'Spray saved for Bed ${sortedBeds.join(', ')}';
+      selectedTargetId = target.id;
+      actionMessage = '${target.shortLabel} spray saved for Bed ${sortedBeds.join(', ')}';
       currentTab = 0;
     });
   }
@@ -346,7 +376,7 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
 
   void addProduct(SprayProduct product) {
     setState(() {
-      products.add(SprayProduct(id: nextProductId++, name: product.name, type: product.type, withholdingDays: product.withholdingDays));
+      products.add(SprayProduct(id: nextProductId++, name: product.name, type: product.type, withholdingDays: product.withholdingDays, targetIds: product.targetIds));
       actionMessage = '${product.name} added';
     });
   }
@@ -355,7 +385,7 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
     setState(() {
       final removed = products.where((product) => product.id == id).map((product) => product.name).firstOrNull;
       products = products.where((product) => product.id != id).toList();
-      if (products.isEmpty) products.add(SprayProduct(id: nextProductId++, name: 'General Spray', type: 'Custom product', withholdingDays: 1));
+      if (products.isEmpty) products.add(SprayProduct(id: nextProductId++, name: 'General Spray', type: 'Custom product', withholdingDays: 1, targetIds: const ['pest', 'fungus', 'prevent', 'maintain']));
       actionMessage = removed == null ? 'Product not found' : '$removed removed';
     });
   }
@@ -363,9 +393,9 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      DashboardScreen(safeCount: safeCount, waitCount: waitCount, records: records, waitingRecords: waitingRecords, plantedBedCount: plantedBedCount, cropAssignmentCount: cropAssignmentCount, actionMessage: actionMessage, onOpenLog: () => openLog(selectedBeds)),
-      VisualMapScreen(selectedBed: selectedBed, bedCrops: bedCrops, actionMessage: actionMessage, bedStatus: statusForBed, onSelectBed: selectBedOnMap, onAddCrop: addCropToBed, onRemoveCrop: removeCropFromBed, onClearCrops: clearCropsForBed, onLogBed: (bedNumber) => openLog({bedNumber}), onClearSprays: clearBedSprays),
-      LogSprayScreen(key: ValueKey('${selectedBeds.join(',')}-${products.length}-${cropAssignmentCount}'), initialBeds: selectedBeds, products: products, bedCrops: bedCrops, onSave: saveSpray),
+      DashboardScreen(safeCount: safeCount, waitCount: waitCount, records: records, waitingRecords: waitingRecords, plantedBedCount: plantedBedCount, cropAssignmentCount: cropAssignmentCount, actionMessage: actionMessage, onOpenLog: () => openLog(selectedBeds, targetId: selectedTargetId)),
+      VisualMapScreen(selectedBed: selectedBed, bedCrops: bedCrops, actionMessage: actionMessage, bedStatus: statusForBed, onSelectBed: selectBedOnMap, onAddCrop: addCropToBed, onRemoveCrop: removeCropFromBed, onClearCrops: clearCropsForBed, onLogBed: (bedNumber, targetId) => openLog({bedNumber}, targetId: targetId), onClearSprays: clearBedSprays),
+      LogSprayScreen(key: ValueKey('${selectedBeds.join(',')}-${products.length}-${cropAssignmentCount}-$selectedTargetId'), initialBeds: selectedBeds, initialTargetId: selectedTargetId, products: products, bedCrops: bedCrops, onSave: saveSpray),
       HistoryScreen(records: records, actionMessage: actionMessage, onRemove: removeRecord, onClearAll: clearAllHistory),
       ProductsScreen(products: products, actionMessage: actionMessage, onAdd: addProduct, onRemove: removeProduct),
     ];
@@ -414,7 +444,7 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final nextSafe = waitingRecords.isEmpty ? null : waitingRecords.reduce((a, b) => a.safeDate.isBefore(b.safeDate) ? a : b);
-    return AppPage(title: 'Spray Tracker', subtitle: 'Spray records, withholding periods, and bed status.', children: [
+    return AppPage(title: 'Spray Tracker', subtitle: 'Visual spray records and crop pressure tracking.', children: [
       if (actionMessage != null) ...[ActionBanner(message: actionMessage!), const SizedBox(height: 12)],
       DashboardHero(safeCount: safeCount, waitCount: waitCount, plantedBedCount: plantedBedCount, cropAssignmentCount: cropAssignmentCount),
       const SizedBox(height: 18),
@@ -463,7 +493,7 @@ class NextSafeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     if (record == null) return const InfoCard(title: 'No active withholding period', subtitle: 'All spray records are currently safe.', icon: CupertinoIcons.check_mark_circled);
     final days = record!.safeDate.difference(DateTime.now()).inDays + 1;
-    return InfoCard(title: 'Next safe harvest', subtitle: 'Bed ${record!.bedNumbers.join(', ')} · ${shortDate(record!.safeDate)}', trailing: '$days days', icon: CupertinoIcons.calendar);
+    return InfoCard(title: 'Next safe harvest', subtitle: 'Bed ${record!.bedNumbers.join(', ')} · ${record!.targetLabel} · ${shortDate(record!.safeDate)}', trailing: '$days days', icon: CupertinoIcons.calendar);
   }
 }
 
@@ -477,14 +507,14 @@ class VisualMapScreen extends StatelessWidget {
   final void Function(int, CropProfile) onAddCrop;
   final void Function(int, CropProfile) onRemoveCrop;
   final ValueChanged<int> onClearCrops;
-  final ValueChanged<int> onLogBed;
+  final void Function(int, String) onLogBed;
   final ValueChanged<int> onClearSprays;
 
   @override
   Widget build(BuildContext context) {
     final crops = bedCrops[selectedBed] ?? const <CropProfile>[];
     final status = bedStatus(selectedBed);
-    return AppPage(title: 'Garden Map', subtitle: 'Assign vegetables and choose a pressure type for spray guidance.', children: [
+    return AppPage(title: 'Garden Map', subtitle: 'Tap a bed, add vegetables, then choose what you are spraying against.', children: [
       if (actionMessage != null) ...[ActionBanner(message: actionMessage!), const SizedBox(height: 12)],
       GardenVisualMap(selectedBed: selectedBed, bedCrops: bedCrops, bedStatus: bedStatus, onSelectBed: onSelectBed),
       const SizedBox(height: 14),
@@ -495,8 +525,8 @@ class VisualMapScreen extends StatelessWidget {
         onAddCrop: () => showCropPicker(context, selectedBed, crops, onAddCrop),
         onRemoveCrop: (crop) => onRemoveCrop(selectedBed, crop),
         onClearCrops: crops.isEmpty ? null : () => onClearCrops(selectedBed),
-        onSuggestedSprays: crops.isEmpty ? null : () => showSuggestedSprayMenu(context, selectedBed, crops),
-        onLog: () => onLogBed(selectedBed),
+        onSprayGuide: crops.isEmpty ? null : () => showSprayGuide(context, selectedBed, crops, onLogTarget: (targetId) => onLogBed(selectedBed, targetId)),
+        onLog: () => onLogBed(selectedBed, 'pest'),
         onClearSprays: () => onClearSprays(selectedBed),
       ),
     ]);
@@ -511,9 +541,9 @@ class GardenVisualMap extends StatelessWidget {
   final ValueChanged<int> onSelectBed;
 
   @override
-  Widget build(BuildContext context) => Container(height: 560, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppColor.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColor.line), boxShadow: subtleShadow), child: LayoutBuilder(builder: (context, constraints) {
+  Widget build(BuildContext context) => RepaintBoundary(child: Container(height: 560, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppColor.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColor.line), boxShadow: subtleShadow), child: LayoutBuilder(builder: (context, constraints) {
     final size = Size(constraints.maxWidth, constraints.maxHeight);
-    return Stack(children: [
+    return Stack(clipBehavior: Clip.none, children: [
       Positioned.fill(child: CustomPaint(painter: GridPainter())),
       MapOutline(rect: compoundOuter, size: size),
       MapOutline(rect: compoundLowerLeft, size: size),
@@ -521,7 +551,7 @@ class GardenVisualMap extends StatelessWidget {
       MapPath(rect: mainPath, size: size),
       ...gardenBeds.map((bed) => MapBedTile(bed: bed, rect: scaleRect(bed.bounds, size), selected: bed.number == selectedBed, crops: bedCrops[bed.number] ?? const <CropProfile>[], status: bedStatus(bed.number), onTap: () => onSelectBed(bed.number))),
     ]);
-  }));
+  })));
 }
 
 class MapBedTile extends StatelessWidget {
@@ -537,7 +567,7 @@ class MapBedTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final waiting = status.label == 'Wait';
     return Positioned.fromRect(rect: rect, child: CupertinoButton(padding: EdgeInsets.zero, onPressed: onTap, child: Stack(clipBehavior: Clip.none, children: [
-      AnimatedContainer(duration: const Duration(milliseconds: 140), alignment: Alignment.center, decoration: BoxDecoration(color: waiting ? AppColor.warningSoft : crops.isEmpty ? const Color(0xFFFCFBF7) : AppColor.primarySoft, borderRadius: BorderRadius.circular(7), border: Border.all(color: selected ? CupertinoColors.activeBlue : waiting ? AppColor.warning : AppColor.earth, width: selected ? 3 : 1.7)), child: Text('${bed.number}', style: const TextStyle(color: AppColor.ink, fontSize: 13, fontWeight: FontWeight.w900))),
+      Container(alignment: Alignment.center, decoration: BoxDecoration(color: waiting ? AppColor.warningSoft : crops.isEmpty ? const Color(0xFFFCFBF7) : AppColor.primarySoft, borderRadius: BorderRadius.circular(7), border: Border.all(color: selected ? CupertinoColors.activeBlue : waiting ? AppColor.warning : AppColor.earth, width: selected ? 3 : 1.7)), child: Text('${bed.number}', style: const TextStyle(color: AppColor.ink, fontSize: 13, fontWeight: FontWeight.w900))),
       if (crops.isNotEmpty) Positioned(top: -10, right: -10, child: CropIconRibbon(crops: crops)),
     ])));
   }
@@ -548,29 +578,18 @@ class CropIconRibbon extends StatelessWidget {
   final List<CropProfile> crops;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 150),
-      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
-      decoration: BoxDecoration(color: AppColor.surface, borderRadius: BorderRadius.circular(999), border: Border.all(color: AppColor.line), boxShadow: subtleShadow),
-      child: Wrap(
-        spacing: 2,
-        runSpacing: 2,
-        children: crops.map((crop) => SizedBox(width: 22, height: 22, child: SvgPicture.asset(crop.iconPath))).toList(),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(constraints: const BoxConstraints(maxWidth: 160), padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3), decoration: BoxDecoration(color: AppColor.surface, borderRadius: BorderRadius.circular(999), border: Border.all(color: AppColor.line), boxShadow: subtleShadow), child: Wrap(spacing: 2, runSpacing: 2, children: crops.map((crop) => SizedBox(width: 22, height: 22, child: SvgPicture.asset(crop.iconPath))).toList()));
 }
 
 class SelectedBedPanel extends StatelessWidget {
-  const SelectedBedPanel({required this.bedNumber, required this.crops, required this.status, required this.onAddCrop, required this.onRemoveCrop, required this.onClearCrops, required this.onSuggestedSprays, required this.onLog, required this.onClearSprays, super.key});
+  const SelectedBedPanel({required this.bedNumber, required this.crops, required this.status, required this.onAddCrop, required this.onRemoveCrop, required this.onClearCrops, required this.onSprayGuide, required this.onLog, required this.onClearSprays, super.key});
   final int bedNumber;
   final List<CropProfile> crops;
   final BedStatus status;
   final VoidCallback onAddCrop;
   final ValueChanged<CropProfile> onRemoveCrop;
   final VoidCallback? onClearCrops;
-  final VoidCallback? onSuggestedSprays;
+  final VoidCallback? onSprayGuide;
   final VoidCallback onLog;
   final VoidCallback onClearSprays;
 
@@ -582,68 +601,64 @@ class SelectedBedPanel extends StatelessWidget {
     const SizedBox(height: 4),
     Text(status.summary, style: const TextStyle(color: AppColor.muted)),
     const SizedBox(height: 12),
-    if (crops.isEmpty) const Text('Add one or more vegetables to this bed to unlock targeted spray suggestions.', style: TextStyle(color: AppColor.muted, fontSize: 13)) else CropChipWrap(crops: crops, onRemoveCrop: onRemoveCrop),
+    if (crops.isEmpty) const Text('Add vegetables to unlock a visual spray guide.', style: TextStyle(color: AppColor.muted, fontSize: 13)) else CropChipWrap(crops: crops, onRemoveCrop: onRemoveCrop),
     const SizedBox(height: 14),
-    Row(children: [Expanded(child: PrimaryButton(title: 'Add vegetable', onPressed: onAddCrop)), const SizedBox(width: 10), Expanded(child: SecondaryButton(title: 'Spray guide', icon: CupertinoIcons.list_bullet, onPressed: onSuggestedSprays))]),
+    Row(children: [Expanded(child: PrimaryButton(title: 'Add vegetable', onPressed: onAddCrop)), const SizedBox(width: 10), Expanded(child: SecondaryButton(title: 'Spray guide', icon: CupertinoIcons.list_bullet, onPressed: onSprayGuide))]),
     const SizedBox(height: 10),
-    Row(children: [Expanded(child: SecondaryButton(title: 'Log spray', icon: CupertinoIcons.drop_fill, onPressed: onLog)), const SizedBox(width: 10), Expanded(child: DestructiveButton(title: 'Clear spray', onPressed: onClearSprays))]),
+    Row(children: [Expanded(child: SecondaryButton(title: 'Quick log', icon: CupertinoIcons.drop_fill, onPressed: onLog)), const SizedBox(width: 10), Expanded(child: DestructiveButton(title: 'Clear spray', onPressed: onClearSprays))]),
     const SizedBox(height: 10),
     DestructiveButton(title: 'Clear all vegetables from bed', onPressed: onClearCrops),
   ]));
 }
 
 class CropChipWrap extends StatelessWidget {
-  const CropChipWrap({required this.crops, required this.onRemoveCrop, super.key});
+  const CropChipWrap({required this.crops, this.onRemoveCrop, this.showRemove = true, super.key});
   final List<CropProfile> crops;
-  final ValueChanged<CropProfile> onRemoveCrop;
+  final ValueChanged<CropProfile>? onRemoveCrop;
+  final bool showRemove;
 
   @override
-  Widget build(BuildContext context) => Wrap(spacing: 8, runSpacing: 8, children: crops.map((crop) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: AppColor.primarySoft, borderRadius: BorderRadius.circular(999), border: Border.all(color: AppColor.line)), child: Row(mainAxisSize: MainAxisSize.min, children: [SizedBox(width: 18, height: 18, child: SvgPicture.asset(crop.iconPath)), const SizedBox(width: 6), Text(crop.name, style: const TextStyle(fontWeight: FontWeight.w800)), CupertinoButton(padding: EdgeInsets.zero, minSize: 20, onPressed: () => onRemoveCrop(crop), child: const Icon(CupertinoIcons.xmark_circle_fill, size: 16, color: AppColor.muted))]))).toList());
+  Widget build(BuildContext context) => Wrap(spacing: 8, runSpacing: 8, children: crops.map((crop) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: AppColor.primarySoft, borderRadius: BorderRadius.circular(999), border: Border.all(color: AppColor.line)), child: Row(mainAxisSize: MainAxisSize.min, children: [SizedBox(width: 18, height: 18, child: SvgPicture.asset(crop.iconPath)), const SizedBox(width: 6), Text(crop.name, style: const TextStyle(fontWeight: FontWeight.w800)), if (showRemove && onRemoveCrop != null) CupertinoButton(padding: EdgeInsets.zero, minSize: 20, onPressed: () => onRemoveCrop!(crop), child: const Icon(CupertinoIcons.xmark_circle_fill, size: 16, color: AppColor.muted))]))).toList());
 }
 
 void showCropPicker(BuildContext context, int bedNumber, List<CropProfile> assigned, void Function(int, CropProfile) onSave) {
   showCupertinoModalPopup<void>(context: context, builder: (_) => CupertinoActionSheet(
     title: Text('Add vegetable to Bed $bedNumber'),
-    message: const Text('Choose one or more vegetables. Already-added items are greyed out.'),
+    message: const Text('Already-added vegetables are greyed out.'),
     actions: cropProfiles.map((crop) {
       final alreadyAdded = assigned.any((item) => item.name == crop.name);
       return CupertinoActionSheetAction(onPressed: () {
         if (alreadyAdded) return;
         onSave(bedNumber, crop);
         Navigator.pop(context);
-      }, child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        SizedBox(width: 24, height: 24, child: SvgPicture.asset(crop.iconPath)),
-        const SizedBox(width: 10),
-        Text(alreadyAdded ? '${crop.name} added' : crop.name, style: TextStyle(color: alreadyAdded ? AppColor.muted : CupertinoColors.activeBlue)),
-      ]));
+      }, child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [SizedBox(width: 24, height: 24, child: SvgPicture.asset(crop.iconPath)), const SizedBox(width: 10), Text(alreadyAdded ? '${crop.name} added' : crop.name, style: TextStyle(color: alreadyAdded ? AppColor.muted : CupertinoColors.activeBlue))]));
     }).toList(),
     cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Done')),
   ));
 }
 
-void showSuggestedSprayMenu(BuildContext context, int bedNumber, List<CropProfile> crops) {
-  showCupertinoModalPopup<void>(context: context, builder: (_) => CupertinoPopupSurface(child: SafeArea(top: false, child: Container(height: MediaQuery.of(context).size.height * .78, color: AppColor.background, child: GuidedSpraySheet(bedNumber: bedNumber, crops: crops)))));
+void showSprayGuide(BuildContext context, int bedNumber, List<CropProfile> crops, {required ValueChanged<String> onLogTarget}) {
+  showCupertinoModalPopup<void>(context: context, builder: (_) => CupertinoPopupSurface(child: SafeArea(top: false, child: Container(height: MediaQuery.of(context).size.height * .80, color: AppColor.background, child: SprayGuideSheet(bedNumber: bedNumber, crops: crops, onLogTarget: onLogTarget)))));
 }
 
-class GuidedSpraySheet extends StatefulWidget {
-  const GuidedSpraySheet({required this.bedNumber, required this.crops, super.key});
+class SprayGuideSheet extends StatefulWidget {
+  const SprayGuideSheet({required this.bedNumber, required this.crops, required this.onLogTarget, super.key});
   final int bedNumber;
   final List<CropProfile> crops;
+  final ValueChanged<String> onLogTarget;
 
   @override
-  State<GuidedSpraySheet> createState() => _GuidedSpraySheetState();
+  State<SprayGuideSheet> createState() => _SprayGuideSheetState();
 }
 
-class _GuidedSpraySheetState extends State<GuidedSpraySheet> {
-  String selected = 'Pest';
+class _SprayGuideSheetState extends State<SprayGuideSheet> {
+  String selectedTargetId = 'pest';
 
-  List<SpraySuggestion> get filteredSuggestions {
+  List<SpraySuggestion> get suggestions {
     final byKey = <String, SpraySuggestion>{};
     for (final crop in widget.crops) {
       for (final suggestion in crop.suggestions) {
-        if (suggestion.category == selected) {
-          byKey['${suggestion.name}-${suggestion.target}'] = suggestion;
-        }
+        if (suggestion.targetId == selectedTargetId) byKey['${suggestion.name}-${suggestion.target}'] = suggestion;
       }
     }
     return byKey.values.toList();
@@ -651,76 +666,83 @@ class _GuidedSpraySheetState extends State<GuidedSpraySheet> {
 
   @override
   Widget build(BuildContext context) {
+    final target = targetById(selectedTargetId);
     return ListView(padding: const EdgeInsets.fromLTRB(20, 18, 20, 28), children: [
       Row(children: [Expanded(child: Text('Spray guide · Bed ${widget.bedNumber}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900))), CupertinoButton(padding: EdgeInsets.zero, onPressed: () => Navigator.pop(context), child: const Icon(CupertinoIcons.xmark_circle_fill, color: AppColor.muted))]),
       const SizedBox(height: 8),
-      CropChipWrap(crops: widget.crops, onRemoveCrop: (_) {}),
+      CropChipWrap(crops: widget.crops, showRemove: false),
       const SizedBox(height: 16),
-      const InfoCard(title: 'Pick what you are seeing', subtitle: 'This narrows the guide so you are not looking through every possible spray option at once.', icon: CupertinoIcons.search),
-      const SizedBox(height: 14),
-      CupertinoSlidingSegmentedControl<String>(
-        groupValue: selected,
-        children: const {
-          'Pest': Padding(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8), child: Text('Pest')),
-          'Fungus': Padding(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8), child: Text('Fungus')),
-          'Preventative': Padding(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8), child: Text('Prevent')),
-          'Maintenance': Padding(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8), child: Text('Maintain')),
-        },
-        onValueChanged: (value) {
-          if (value != null) setState(() => selected = value);
-        },
-      ),
-      const SizedBox(height: 18),
-      if (selected == 'Preventative') PreventativeGuide(crops: widget.crops) else if (selected == 'Maintenance') MaintenanceGuide(crops: widget.crops, suggestions: filteredSuggestions) else PressureGuide(title: selected == 'Pest' ? 'Likely pest pressure' : 'Likely fungal pressure', crops: widget.crops, suggestions: filteredSuggestions, pest: selected == 'Pest'),
+      const Text('What are you spraying against?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 10),
+      TargetSelectorGrid(selectedTargetId: selectedTargetId, onSelected: (id) => setState(() => selectedTargetId = id)),
+      const SizedBox(height: 16),
+      InfoCard(title: target.label, subtitle: target.description, icon: CupertinoIcons.scope),
+      const SizedBox(height: 16),
+      PressureSummary(crops: widget.crops, targetId: selectedTargetId),
+      const SizedBox(height: 16),
+      const SectionHeader(title: 'Best matching options'),
+      const SizedBox(height: 10),
+      if (suggestions.isEmpty) const EmptyCard('No spray option for this target. Use maintenance actions instead.') else ...suggestions.map((suggestion) => SpraySuggestionCard(suggestion: suggestion)),
+      const SizedBox(height: 12),
+      PrimaryButton(title: 'Log spray against ${target.shortLabel}', onPressed: () { Navigator.pop(context); widget.onLogTarget(target.id); }),
       const SizedBox(height: 12),
       const Text('Use this as guidance only. Always check the spray label, crop suitability, weather limits, and withholding period before applying anything.', style: TextStyle(color: AppColor.muted, fontSize: 12, fontWeight: FontWeight.w600)),
     ]);
   }
 }
 
-class PressureGuide extends StatelessWidget {
-  const PressureGuide({required this.title, required this.crops, required this.suggestions, required this.pest, super.key});
+class TargetSelectorGrid extends StatelessWidget {
+  const TargetSelectorGrid({required this.selectedTargetId, required this.onSelected, super.key});
+  final String selectedTargetId;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) => GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 2.35, children: sprayTargets.map((target) => TargetTile(target: target, selected: selectedTargetId == target.id, onTap: () => onSelected(target.id))).toList());
+}
+
+class TargetTile extends StatelessWidget {
+  const TargetTile({required this.target, required this.selected, required this.onTap, super.key});
+  final SprayTarget target;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onTap, child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: selected ? target.softColor : AppColor.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: selected ? target.color : AppColor.line, width: selected ? 2 : 1), boxShadow: selected ? subtleShadow : null), child: Row(children: [TargetMark(target: target), const SizedBox(width: 8), Expanded(child: Text(target.shortLabel, style: TextStyle(color: selected ? target.color : AppColor.ink, fontWeight: FontWeight.w900)))])));
+}
+
+class TargetMark extends StatelessWidget {
+  const TargetMark({required this.target, super.key});
+  final SprayTarget target;
+
+  @override
+  Widget build(BuildContext context) => Container(width: 34, height: 34, alignment: Alignment.center, decoration: BoxDecoration(color: target.softColor, shape: BoxShape.circle, border: Border.all(color: target.color.withOpacity(.25))), child: Text(target.mark, style: TextStyle(color: target.color, fontSize: 12, fontWeight: FontWeight.w900)));
+}
+
+class PressureSummary extends StatelessWidget {
+  const PressureSummary({required this.crops, required this.targetId, super.key});
+  final List<CropProfile> crops;
+  final String targetId;
+
+  @override
+  Widget build(BuildContext context) {
+    if (targetId == 'prevent') return GuidanceListGroup(title: 'Preventative actions', crops: crops, itemsFor: (crop) => crop.preventative);
+    if (targetId == 'maintain') return GuidanceListGroup(title: 'Maintenance actions', crops: crops, itemsFor: (crop) => crop.maintenance);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SectionHeader(title: targetId == 'pest' ? 'Likely pest pressure' : 'Likely fungal pressure'),
+      const SizedBox(height: 10),
+      ...crops.map((crop) => CompactPressureCard(crop: crop, pest: targetId == 'pest')),
+    ]);
+  }
+}
+
+class GuidanceListGroup extends StatelessWidget {
+  const GuidanceListGroup({required this.title, required this.crops, required this.itemsFor, super.key});
   final String title;
   final List<CropProfile> crops;
-  final List<SpraySuggestion> suggestions;
-  final bool pest;
+  final List<String> Function(CropProfile crop) itemsFor;
 
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    SectionHeader(title: title),
-    const SizedBox(height: 10),
-    ...crops.map((crop) => CompactPressureCard(crop: crop, pest: pest)),
-    const SizedBox(height: 12),
-    const SectionHeader(title: 'Suggested options'),
-    const SizedBox(height: 10),
-    if (suggestions.isEmpty) const EmptyCard('No spray suggestions for this category.') else ...suggestions.map((suggestion) => SpraySuggestionCard(suggestion: suggestion)),
-  ]);
-}
-
-class PreventativeGuide extends StatelessWidget {
-  const PreventativeGuide({required this.crops, super.key});
-  final List<CropProfile> crops;
-
-  @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    const SectionHeader(title: 'Preventative actions'),
-    const SizedBox(height: 10),
-    ...crops.map((crop) => GuidanceListCard(crop: crop, items: crop.preventative)),
-  ]);
-}
-
-class MaintenanceGuide extends StatelessWidget {
-  const MaintenanceGuide({required this.crops, required this.suggestions, super.key});
-  final List<CropProfile> crops;
-  final List<SpraySuggestion> suggestions;
-
-  @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    const SectionHeader(title: 'Maintenance tasks'),
-    const SizedBox(height: 10),
-    ...crops.map((crop) => GuidanceListCard(crop: crop, items: crop.maintenance)),
-    if (suggestions.isNotEmpty) ...[const SizedBox(height: 12), const SectionHeader(title: 'Support options'), const SizedBox(height: 10), ...suggestions.map((suggestion) => SpraySuggestionCard(suggestion: suggestion))],
-  ]);
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [SectionHeader(title: title), const SizedBox(height: 10), ...crops.map((crop) => GuidanceListCard(crop: crop, items: itemsFor(crop)))]);
 }
 
 class CompactPressureCard extends StatelessWidget {
@@ -729,15 +751,7 @@ class CompactPressureCard extends StatelessWidget {
   final bool pest;
 
   @override
-  Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14), decoration: cardDecoration, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    SizedBox(width: 28, height: 28, child: SvgPicture.asset(crop.iconPath)),
-    const SizedBox(width: 10),
-    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(crop.name, style: const TextStyle(fontWeight: FontWeight.w900)),
-      const SizedBox(height: 4),
-      Text(pest ? crop.pestPressure : crop.fungusPressure, style: const TextStyle(color: AppColor.muted, fontSize: 13)),
-    ])),
-  ]));
+  Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14), decoration: cardDecoration, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [SizedBox(width: 28, height: 28, child: SvgPicture.asset(crop.iconPath)), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(crop.name, style: const TextStyle(fontWeight: FontWeight.w900)), const SizedBox(height: 4), Text(pest ? crop.pestPressure : crop.fungusPressure, style: const TextStyle(color: AppColor.muted, fontSize: 13))]))]));
 }
 
 class GuidanceListCard extends StatelessWidget {
@@ -746,11 +760,7 @@ class GuidanceListCard extends StatelessWidget {
   final List<String> items;
 
   @override
-  Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14), decoration: cardDecoration, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Row(children: [SizedBox(width: 28, height: 28, child: SvgPicture.asset(crop.iconPath)), const SizedBox(width: 10), Expanded(child: Text(crop.name, style: const TextStyle(fontWeight: FontWeight.w900)))]),
-    const SizedBox(height: 8),
-    ...items.map((item) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Text('• $item', style: const TextStyle(color: AppColor.muted, fontSize: 13)))),
-  ]));
+  Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14), decoration: cardDecoration, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [SizedBox(width: 28, height: 28, child: SvgPicture.asset(crop.iconPath)), const SizedBox(width: 10), Expanded(child: Text(crop.name, style: const TextStyle(fontWeight: FontWeight.w900)))]), const SizedBox(height: 8), ...items.map((item) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Text('• $item', style: const TextStyle(color: AppColor.muted, fontSize: 13))))]));
 }
 
 class SpraySuggestionCard extends StatelessWidget {
@@ -758,13 +768,10 @@ class SpraySuggestionCard extends StatelessWidget {
   final SpraySuggestion suggestion;
 
   @override
-  Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14), decoration: cardDecoration, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Row(children: [Expanded(child: Text(suggestion.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16))), StatusChip(text: suggestion.category, color: AppColor.primary, bg: AppColor.primarySoft)]),
-    const SizedBox(height: 8),
-    Text('Target: ${suggestion.target}', style: const TextStyle(color: AppColor.ink, fontWeight: FontWeight.w700)),
-    const SizedBox(height: 4),
-    Text(suggestion.whenToUse, style: const TextStyle(color: AppColor.muted, fontSize: 13)),
-  ]));
+  Widget build(BuildContext context) {
+    final target = targetById(suggestion.targetId);
+    return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14), decoration: cardDecoration, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [TargetMark(target: target), const SizedBox(width: 10), Expanded(child: Text(suggestion.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16))), StatusChip(text: target.shortLabel, color: target.color, bg: target.softColor)]), const SizedBox(height: 8), Text('Target: ${suggestion.target}', style: const TextStyle(color: AppColor.ink, fontWeight: FontWeight.w700)), const SizedBox(height: 4), Text(suggestion.whenToUse, style: const TextStyle(color: AppColor.muted, fontSize: 13))]));
+  }
 }
 
 class MapOutline extends StatelessWidget {
@@ -789,12 +796,8 @@ class GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = const Color(0xFFEDEAE2)..strokeWidth = .45;
-    for (double x = 0; x < size.width; x += 12) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += 12) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
+    for (double x = 0; x < size.width; x += 12) canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    for (double y = 0; y < size.height; y += 12) canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
   }
 
   @override
@@ -802,11 +805,12 @@ class GridPainter extends CustomPainter {
 }
 
 class LogSprayScreen extends StatefulWidget {
-  const LogSprayScreen({required this.initialBeds, required this.products, required this.bedCrops, required this.onSave, super.key});
+  const LogSprayScreen({required this.initialBeds, required this.initialTargetId, required this.products, required this.bedCrops, required this.onSave, super.key});
   final Set<int> initialBeds;
+  final String initialTargetId;
   final List<SprayProduct> products;
   final Map<int, List<CropProfile>> bedCrops;
-  final void Function({required Set<int> beds, required SprayProduct product, required String reason, required String notes, required int withholdingDays}) onSave;
+  final void Function({required Set<int> beds, required SprayProduct product, required String targetId, required String reason, required String notes, required int withholdingDays}) onSave;
 
   @override
   State<LogSprayScreen> createState() => _LogSprayScreenState();
@@ -815,16 +819,20 @@ class LogSprayScreen extends StatefulWidget {
 class _LogSprayScreenState extends State<LogSprayScreen> {
   int step = 0;
   late Set<int> selectedBeds;
+  late String selectedTargetId;
   late SprayProduct selectedProduct;
   late int withholdingDays;
   final reasonController = TextEditingController();
   final notesController = TextEditingController();
 
+  List<SprayProduct> get matchingProducts => widget.products.where((product) => product.targetIds.contains(selectedTargetId)).toList();
+
   @override
   void initState() {
     super.initState();
     selectedBeds = {...widget.initialBeds};
-    selectedProduct = widget.products.first;
+    selectedTargetId = widget.initialTargetId;
+    selectedProduct = matchingProducts.firstOrNull ?? widget.products.first;
     withholdingDays = selectedProduct.withholdingDays;
   }
 
@@ -835,33 +843,39 @@ class _LogSprayScreenState extends State<LogSprayScreen> {
     super.dispose();
   }
 
-  void goNext() => setState(() => step = (step + 1).clamp(0, 3));
-  void goBack() => setState(() => step = (step - 1).clamp(0, 3));
-  void save() => widget.onSave(beds: selectedBeds, product: selectedProduct, reason: reasonController.text, notes: notesController.text, withholdingDays: withholdingDays);
+  void chooseTarget(String targetId) {
+    setState(() {
+      selectedTargetId = targetId;
+      selectedProduct = matchingProducts.firstOrNull ?? widget.products.first;
+      withholdingDays = selectedProduct.withholdingDays;
+    });
+  }
+
+  void goNext() => setState(() => step = (step + 1).clamp(0, 4));
+  void goBack() => setState(() => step = (step - 1).clamp(0, 4));
+  void save() => widget.onSave(beds: selectedBeds, product: selectedProduct, targetId: selectedTargetId, reason: reasonController.text, notes: notesController.text, withholdingDays: withholdingDays);
 
   @override
-  Widget build(BuildContext context) => AppPage(title: 'Log Spray', subtitle: ['Select beds', 'Select product', 'Add details', 'Review and save'][step], leading: step == 0 ? null : CupertinoButton(padding: EdgeInsets.zero, onPressed: goBack, child: const Icon(CupertinoIcons.back, color: AppColor.ink)), children: [
-    StepProgress(step: step),
+  Widget build(BuildContext context) => AppPage(title: 'Log Spray', subtitle: ['Select beds', 'Spray target', 'Select product', 'Add details', 'Review and save'][step], leading: step == 0 ? null : CupertinoButton(padding: EdgeInsets.zero, onPressed: goBack, child: const Icon(CupertinoIcons.back, color: AppColor.ink)), children: [
+    StepProgress(step: step, total: 5),
     const SizedBox(height: 22),
     if (step == 0) SelectBedsStep(selectedBeds: selectedBeds, bedCrops: widget.bedCrops, onChanged: (beds) => setState(() => selectedBeds = beds)),
-    if (step == 1) SelectProductStep(products: widget.products, selected: selectedProduct, onSelected: (product) => setState(() { selectedProduct = product; withholdingDays = product.withholdingDays; })),
-    if (step == 2) DetailsStep(reasonController: reasonController, notesController: notesController, withholdingDays: withholdingDays, onDecrease: withholdingDays > 0 ? () => setState(() => withholdingDays--) : null, onIncrease: () => setState(() => withholdingDays++)),
-    if (step == 3) ReviewStep(beds: selectedBeds, product: selectedProduct, reason: reasonController.text, notes: notesController.text, withholdingDays: withholdingDays),
+    if (step == 1) SelectTargetStep(selectedTargetId: selectedTargetId, onSelected: chooseTarget),
+    if (step == 2) SelectProductStep(products: widget.products, selected: selectedProduct, selectedTargetId: selectedTargetId, onSelected: (product) => setState(() { selectedProduct = product; withholdingDays = product.withholdingDays; })),
+    if (step == 3) DetailsStep(reasonController: reasonController, notesController: notesController, withholdingDays: withholdingDays, onDecrease: withholdingDays > 0 ? () => setState(() => withholdingDays--) : null, onIncrease: () => setState(() => withholdingDays++)),
+    if (step == 4) ReviewStep(beds: selectedBeds, product: selectedProduct, targetId: selectedTargetId, reason: reasonController.text, notes: notesController.text, withholdingDays: withholdingDays),
     const SizedBox(height: 20),
-    Row(children: [
-      if (step > 0) Expanded(child: SecondaryButton(title: 'Back', icon: CupertinoIcons.back, onPressed: goBack)),
-      if (step > 0) const SizedBox(width: 12),
-      Expanded(child: PrimaryButton(title: step == 3 ? 'Save Spray' : ['Next: Product', 'Next: Details', 'Next: Review'][step], onPressed: step == 3 ? save : goNext)),
-    ]),
+    Row(children: [if (step > 0) Expanded(child: SecondaryButton(title: 'Back', icon: CupertinoIcons.back, onPressed: goBack)), if (step > 0) const SizedBox(width: 12), Expanded(child: PrimaryButton(title: step == 4 ? 'Save Spray' : ['Next: Target', 'Next: Product', 'Next: Details', 'Next: Review'][step], onPressed: step == 4 ? save : goNext))]),
   ]);
 }
 
 class StepProgress extends StatelessWidget {
-  const StepProgress({required this.step, super.key});
+  const StepProgress({required this.step, required this.total, super.key});
   final int step;
+  final int total;
 
   @override
-  Widget build(BuildContext context) => Row(children: List.generate(4, (index) => Expanded(child: Row(children: [Expanded(child: Container(height: 3, color: index <= step ? AppColor.primary : AppColor.line)), Container(width: 26, height: 26, alignment: Alignment.center, decoration: BoxDecoration(color: index <= step ? AppColor.primary : AppColor.surfaceSoft, shape: BoxShape.circle), child: Text('${index + 1}', style: TextStyle(color: index <= step ? CupertinoColors.white : AppColor.muted, fontWeight: FontWeight.w900, fontSize: 12)))]))));
+  Widget build(BuildContext context) => Row(children: List.generate(total, (index) => Expanded(child: Row(children: [Expanded(child: Container(height: 3, color: index <= step ? AppColor.primary : AppColor.line)), Container(width: 24, height: 24, alignment: Alignment.center, decoration: BoxDecoration(color: index <= step ? AppColor.primary : AppColor.surfaceSoft, shape: BoxShape.circle), child: Text('${index + 1}', style: TextStyle(color: index <= step ? CupertinoColors.white : AppColor.muted, fontWeight: FontWeight.w900, fontSize: 11)))]))));
 }
 
 class SelectBedsStep extends StatelessWidget {
@@ -871,33 +885,42 @@ class SelectBedsStep extends StatelessWidget {
   final ValueChanged<Set<int>> onChanged;
 
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    const SectionHeader(title: 'Select beds'),
-    const SizedBox(height: 6),
-    Text('${selectedBeds.length} selected', style: const TextStyle(color: AppColor.muted, fontWeight: FontWeight.w700)),
-    const SizedBox(height: 12),
-    Wrap(spacing: 8, runSpacing: 8, children: gardenBeds.map((bed) => BedChip(number: bed.number, selected: selectedBeds.contains(bed.number), iconPath: (bedCrops[bed.number]?.isNotEmpty ?? false) ? bedCrops[bed.number]!.first.iconPath : null, count: bedCrops[bed.number]?.length ?? 0, onTap: () { final next = {...selectedBeds}; next.contains(bed.number) ? next.remove(bed.number) : next.add(bed.number); onChanged(next); })).toList()),
-  ]);
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const SectionHeader(title: 'Select beds'), const SizedBox(height: 6), Text('${selectedBeds.length} selected', style: const TextStyle(color: AppColor.muted, fontWeight: FontWeight.w700)), const SizedBox(height: 12), Wrap(spacing: 8, runSpacing: 8, children: gardenBeds.map((bed) => BedChip(number: bed.number, selected: selectedBeds.contains(bed.number), iconPath: (bedCrops[bed.number]?.isNotEmpty ?? false) ? bedCrops[bed.number]!.first.iconPath : null, count: bedCrops[bed.number]?.length ?? 0, onTap: () { final next = {...selectedBeds}; next.contains(bed.number) ? next.remove(bed.number) : next.add(bed.number); onChanged(next); })).toList())]);
+}
+
+class SelectTargetStep extends StatelessWidget {
+  const SelectTargetStep({required this.selectedTargetId, required this.onSelected, super.key});
+  final String selectedTargetId;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const SectionHeader(title: 'What are you spraying against?'), const SizedBox(height: 10), TargetSelectorGrid(selectedTargetId: selectedTargetId, onSelected: onSelected), const SizedBox(height: 12), InfoCard(title: targetById(selectedTargetId).label, subtitle: targetById(selectedTargetId).description, icon: CupertinoIcons.scope)]);
 }
 
 class SelectProductStep extends StatelessWidget {
-  const SelectProductStep({required this.products, required this.selected, required this.onSelected, super.key});
+  const SelectProductStep({required this.products, required this.selected, required this.selectedTargetId, required this.onSelected, super.key});
   final List<SprayProduct> products;
   final SprayProduct selected;
+  final String selectedTargetId;
   final ValueChanged<SprayProduct> onSelected;
 
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const SectionHeader(title: 'Select product'), const SizedBox(height: 12), ...products.map((product) => ProductSelectCard(product: product, selected: product.id == selected.id, onTap: () => onSelected(product)))]);
+  Widget build(BuildContext context) {
+    final suggested = products.where((product) => product.targetIds.contains(selectedTargetId)).toList();
+    final others = products.where((product) => !product.targetIds.contains(selectedTargetId)).toList();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const SectionHeader(title: 'Suggested products'), const SizedBox(height: 12), if (suggested.isEmpty) const EmptyCard('No matching product yet. Add one in Products.') else ...suggested.map((product) => ProductSelectCard(product: product, selected: product.id == selected.id, suggested: true, onTap: () => onSelected(product))), if (others.isNotEmpty) ...[const SizedBox(height: 14), const SectionHeader(title: 'Other products'), const SizedBox(height: 12), ...others.map((product) => ProductSelectCard(product: product, selected: product.id == selected.id, suggested: false, onTap: () => onSelected(product)))] ]);
+  }
 }
 
 class ProductSelectCard extends StatelessWidget {
-  const ProductSelectCard({required this.product, required this.selected, required this.onTap, super.key});
+  const ProductSelectCard({required this.product, required this.selected, required this.suggested, required this.onTap, super.key});
   final SprayProduct product;
   final bool selected;
+  final bool suggested;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onTap, child: Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: selected ? AppColor.primarySoft : AppColor.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: selected ? AppColor.primary : AppColor.line), boxShadow: subtleShadow), child: Row(children: [Container(width: 36, height: 36, decoration: BoxDecoration(color: AppColor.surfaceSoft, borderRadius: BorderRadius.circular(12)), child: const Icon(CupertinoIcons.drop, color: AppColor.primary)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(product.name, style: const TextStyle(color: AppColor.ink, fontWeight: FontWeight.w900)), Text('${product.type} · ${product.withholdingDays} days', style: const TextStyle(color: AppColor.muted, fontSize: 12))])), if (selected) const Icon(CupertinoIcons.check_mark_circled_solid, color: AppColor.primary)])));
+  Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onTap, child: Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: selected ? AppColor.primarySoft : AppColor.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: selected ? AppColor.primary : AppColor.line), boxShadow: subtleShadow), child: Row(children: [Container(width: 36, height: 36, decoration: BoxDecoration(color: AppColor.surfaceSoft, borderRadius: BorderRadius.circular(12)), child: const Icon(CupertinoIcons.drop, color: AppColor.primary)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(product.name, style: const TextStyle(color: AppColor.ink, fontWeight: FontWeight.w900)), Text('${product.type} · ${product.withholdingDays} days', style: const TextStyle(color: AppColor.muted, fontSize: 12))])), if (suggested) const StatusChip(text: 'MATCH', color: AppColor.primary, bg: AppColor.primarySoft), if (selected) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(CupertinoIcons.check_mark_circled_solid, color: AppColor.primary))])));
 }
 
 class DetailsStep extends StatelessWidget {
@@ -909,19 +932,23 @@ class DetailsStep extends StatelessWidget {
   final VoidCallback onIncrease;
 
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const SectionHeader(title: 'Add details'), const SizedBox(height: 14), FieldLabel(label: 'Reason', child: CupertinoTextField(controller: reasonController, placeholder: 'Aphids, mildew, tonic, etc.', padding: const EdgeInsets.all(14), decoration: inputDecoration)), const SizedBox(height: 14), PremiumCard(child: Row(children: [const Expanded(child: Text('Withholding period', style: TextStyle(fontWeight: FontWeight.w900))), StepButton(icon: CupertinoIcons.minus, onPressed: onDecrease), Text('$withholdingDays', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)), StepButton(icon: CupertinoIcons.plus, onPressed: onIncrease)])), const SizedBox(height: 14), FieldLabel(label: 'Notes optional', child: CupertinoTextField(controller: notesController, placeholder: 'Application notes', maxLines: 4, padding: const EdgeInsets.all(14), decoration: inputDecoration))]);
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const SectionHeader(title: 'Add details'), const SizedBox(height: 14), FieldLabel(label: 'Specific issue optional', child: CupertinoTextField(controller: reasonController, placeholder: 'e.g. aphids on tomatoes, early mildew risk', padding: const EdgeInsets.all(14), decoration: inputDecoration)), const SizedBox(height: 14), PremiumCard(child: Row(children: [const Expanded(child: Text('Withholding period', style: TextStyle(fontWeight: FontWeight.w900))), StepButton(icon: CupertinoIcons.minus, onPressed: onDecrease), Text('$withholdingDays', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)), StepButton(icon: CupertinoIcons.plus, onPressed: onIncrease)])), const SizedBox(height: 14), FieldLabel(label: 'Notes optional', child: CupertinoTextField(controller: notesController, placeholder: 'Application notes', maxLines: 4, padding: const EdgeInsets.all(14), decoration: inputDecoration))]);
 }
 
 class ReviewStep extends StatelessWidget {
-  const ReviewStep({required this.beds, required this.product, required this.reason, required this.notes, required this.withholdingDays, super.key});
+  const ReviewStep({required this.beds, required this.product, required this.targetId, required this.reason, required this.notes, required this.withholdingDays, super.key});
   final Set<int> beds;
   final SprayProduct product;
+  final String targetId;
   final String reason;
   final String notes;
   final int withholdingDays;
 
   @override
-  Widget build(BuildContext context) => PremiumCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const SectionHeader(title: 'Summary'), const SizedBox(height: 16), SummaryRow('Beds', beds.toList()..sort()), SummaryRow('Product', product.name), SummaryRow('Date sprayed', dateLabel(DateTime.now())), SummaryRow('Reason', reason.trim().isEmpty ? 'General spray' : reason.trim()), SummaryRow('Withholding', '$withholdingDays days'), SummaryRow('Safe from', dateLabel(DateTime.now().add(Duration(days: withholdingDays)))), if (notes.trim().isNotEmpty) SummaryRow('Notes', notes.trim())]));
+  Widget build(BuildContext context) {
+    final target = targetById(targetId);
+    return PremiumCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const SectionHeader(title: 'Summary'), const SizedBox(height: 16), SummaryRow('Beds', beds.toList()..sort()), SummaryRow('Spraying against', target.label), SummaryRow('Product', product.name), SummaryRow('Date sprayed', dateLabel(DateTime.now())), SummaryRow('Issue', reason.trim().isEmpty ? target.label : reason.trim()), SummaryRow('Withholding', '$withholdingDays days'), SummaryRow('Safe from', dateLabel(DateTime.now().add(Duration(days: withholdingDays)))), if (notes.trim().isNotEmpty) SummaryRow('Notes', notes.trim())]));
+  }
 }
 
 class HistoryScreen extends StatelessWidget {
@@ -950,7 +977,7 @@ void showAddProductDialog(BuildContext context, ValueChanged<SprayProduct> onAdd
   final name = TextEditingController();
   final type = TextEditingController(text: 'Custom product');
   final days = TextEditingController(text: '1');
-  showCupertinoDialog<void>(context: context, builder: (_) => CupertinoAlertDialog(title: const Text('Add product'), content: Column(children: [const SizedBox(height: 12), CupertinoTextField(controller: name, placeholder: 'Name'), const SizedBox(height: 8), CupertinoTextField(controller: type, placeholder: 'Type'), const SizedBox(height: 8), CupertinoTextField(controller: days, placeholder: 'Withholding days', keyboardType: TextInputType.number)]), actions: [CupertinoDialogAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)), CupertinoDialogAction(isDefaultAction: true, child: const Text('Add'), onPressed: () { final parsedDays = int.tryParse(days.text) ?? 1; if (name.text.trim().isNotEmpty) onAdd(SprayProduct(id: 0, name: name.text.trim(), type: type.text.trim().isEmpty ? 'Custom product' : type.text.trim(), withholdingDays: parsedDays)); Navigator.pop(context); })]));
+  showCupertinoDialog<void>(context: context, builder: (_) => CupertinoAlertDialog(title: const Text('Add product'), content: Column(children: [const SizedBox(height: 12), CupertinoTextField(controller: name, placeholder: 'Name'), const SizedBox(height: 8), CupertinoTextField(controller: type, placeholder: 'Type'), const SizedBox(height: 8), CupertinoTextField(controller: days, placeholder: 'Withholding days', keyboardType: TextInputType.number)]), actions: [CupertinoDialogAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)), CupertinoDialogAction(isDefaultAction: true, child: const Text('Add'), onPressed: () { final parsedDays = int.tryParse(days.text) ?? 1; if (name.text.trim().isNotEmpty) onAdd(SprayProduct(id: 0, name: name.text.trim(), type: type.text.trim().isEmpty ? 'Custom product' : type.text.trim(), withholdingDays: parsedDays, targetIds: const ['pest', 'fungus', 'prevent', 'maintain'])); Navigator.pop(context); })]));
 }
 
 class AppPage extends StatelessWidget {
@@ -1113,7 +1140,8 @@ class SprayRecordCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final waiting = record.safeDate.isAfter(DateTime.now());
-    return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(16), decoration: cardDecoration, child: Row(children: [Container(width: 42, height: 42, decoration: BoxDecoration(color: AppColor.primarySoft, borderRadius: BorderRadius.circular(14)), child: const Icon(CupertinoIcons.drop, color: AppColor.primary)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Bed ${record.bedNumbers.join(', ')}', style: const TextStyle(fontWeight: FontWeight.w900)), Text(record.product, style: const TextStyle(color: AppColor.ink)), Text('${record.withholdingDays} days · ${shortDate(record.sprayedAt)}', style: const TextStyle(color: AppColor.muted, fontSize: 12))])), Column(children: [StatusPill(status: waiting ? 'Wait' : 'Safe'), if (onRemove != null) CupertinoButton(padding: EdgeInsets.zero, minSize: 30, onPressed: onRemove, child: const Icon(CupertinoIcons.trash, color: AppColor.danger, size: 20))]) ]));
+    final target = targetById(record.targetId);
+    return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(16), decoration: cardDecoration, child: Row(children: [TargetMark(target: target), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Bed ${record.bedNumbers.join(', ')}', style: const TextStyle(fontWeight: FontWeight.w900)), Text('${record.product} · ${record.targetLabel}', style: const TextStyle(color: AppColor.ink)), Text('${record.withholdingDays} days · ${shortDate(record.sprayedAt)}', style: const TextStyle(color: AppColor.muted, fontSize: 12))])), Column(children: [StatusPill(status: waiting ? 'Wait' : 'Safe'), if (onRemove != null) CupertinoButton(padding: EdgeInsets.zero, minSize: 30, onPressed: onRemove, child: const Icon(CupertinoIcons.trash, color: AppColor.danger, size: 20))]) ]));
   }
 }
 
@@ -1124,4 +1152,12 @@ class ProductLibraryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(16), decoration: cardDecoration, child: Row(children: [Container(width: 46, height: 46, decoration: BoxDecoration(color: AppColor.primarySoft, borderRadius: BorderRadius.circular(15)), child: const Icon(CupertinoIcons.cube_box, color: AppColor.primary)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(product.name, style: const TextStyle(fontWeight: FontWeight.w900)), Text(product.type, style: const TextStyle(color: AppColor.muted)), Text('Withholding: ${product.withholdingDays} days', style: const TextStyle(color: AppColor.ink, fontSize: 12))])), CupertinoButton(padding: EdgeInsets.zero, onPressed: onRemove, child: const Icon(CupertinoIcons.trash, color: AppColor.danger, size: 20))]));
+}
+
+class TargetMark extends StatelessWidget {
+  const TargetMark({required this.target, super.key});
+  final SprayTarget target;
+
+  @override
+  Widget build(BuildContext context) => Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(color: target.softColor, shape: BoxShape.circle, border: Border.all(color: target.color.withOpacity(.28))), child: Text(target.mark, style: TextStyle(color: target.color, fontSize: 12, fontWeight: FontWeight.w900)));
 }
