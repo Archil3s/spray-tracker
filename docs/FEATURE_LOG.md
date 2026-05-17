@@ -14,7 +14,7 @@ The app should answer the main question quickly:
 - Visual style: soft grouped cards, large headers, simple bottom tabs
 - Mood: practical, clean, calm, garden-focused
 - Priority: fast recording and clear safety state
-- Avoided for MVP: account login, cloud sync, complex bed setup, heavy farm-management workflows
+- Avoided for MVP: account login, cloud sync, heavy farm-management workflows
 
 ## Current committed features
 
@@ -56,20 +56,48 @@ The app should answer the main question quickly:
 
 - Product
 - Crop
-- Area
+- Beds
 - Reason
 - Withholding period
 - Safe harvest date
 
 **Important decision:**
 
-Beds are not required for MVP. The app currently allows a manual area/location value. Manual bed management will be added later as its own feature.
+The utility flow now supports bed selection conceptually, but full bed editing is still a later feature. The app can use the mapped 17-bed layout before allowing user-edited bed shapes.
 
 **Mockup:** [`docs/mockups/log-spray.svg`](mockups/log-spray.svg)
 
 ---
 
-### 3. Spray history
+### 3. Interactive garden map
+
+**Status:** First functional prototype scaffolded
+
+**Purpose:** Make the GrowVeg-based bed layout interactive inside the app.
+
+**Current behaviour:**
+
+- Adds a `Map` tab to the iOS-style bottom navigation
+- Draws a simplified custom map using `CustomPainter`
+- Represents 17 beds from the supplied GrowVeg screenshots
+- Supports tap detection for each mapped bed
+- Updates a selected-bed detail card after tapping a bed
+- Shows demo safety state:
+  - `Safe`
+  - `Wait`
+- Provides a button placeholder: `Log spray for Bed X`
+
+**Technical notes:**
+
+- First implementation uses normalized coordinate rectangles for each bed
+- The map is vector-rendered in Flutter, not dependent on a static screenshot
+- This makes future spray overlays, selected states, and dashboard integration easier
+
+**Mockup:** [`docs/mockups/garden-map.svg`](mockups/garden-map.svg)
+
+---
+
+### 4. Spray history
 
 **Status:** Scaffolded
 
@@ -86,7 +114,7 @@ Beds are not required for MVP. The app currently allows a manual area/location v
 
 ---
 
-### 4. Product library
+### 5. Product library
 
 **Status:** Scaffolded
 
@@ -118,7 +146,7 @@ Beds are not required for MVP. The app currently allows a manual area/location v
 class SprayRecord {
   final String product;
   final String crop;
-  final String location;
+  final List<int> bedNumbers;
   final DateTime sprayedAt;
   final int withholdingDays;
   final String reason;
@@ -139,12 +167,13 @@ class SprayProduct {
 
 ### Garden bed
 
-Not part of the first utility MVP. Later:
-
 ```dart
-class GardenBed {
-  final String name;
-  final String notes;
+class GardenBedZone {
+  final int number;
+  final Rect bounds;
+  final String status;
+  final String cropSummary;
+  final String lastSpray;
 }
 ```
 
@@ -162,7 +191,17 @@ class GardenBed {
 - [x] Static mockups
 - [x] Feature log
 
-### Phase 2 — Make it functional
+### Phase 2 — Interactive garden map
+
+- [x] Add Map tab
+- [x] Add 17 mapped beds
+- [x] Add tappable bed zones
+- [x] Add selected bed detail card
+- [x] Add Garden Map mockup
+- [ ] Connect map selection to Log Spray screen
+- [ ] Add multi-bed selection for spray logging
+
+### Phase 3 — Make spray logging functional
 
 - [ ] Add form state for logging sprays
 - [ ] Add in-memory spray record list
@@ -170,26 +209,27 @@ class GardenBed {
 - [ ] Add basic edit/delete actions
 - [ ] Add empty states
 
-### Phase 3 — Persistence
+### Phase 4 — Persistence
 
 - [ ] Add local database
 - [ ] Save spray records locally
 - [ ] Save product library locally
 - [ ] Load dashboard from saved records
 
-### Phase 4 — Utility upgrades
+### Phase 5 — Utility upgrades
 
 - [ ] Local notification for safe harvest date
 - [ ] Re-check reminder
 - [ ] Filter history by crop/product/status
 - [ ] Export log as CSV
 
-### Phase 5 — Manual beds
+### Phase 6 — Manual bed editing
 
 - [ ] Add bed list
 - [ ] Add bed creation form
 - [ ] Attach spray record to one or more beds
 - [ ] Dashboard grouping by bed
+- [ ] Add editable bed names and crops
 
 ## Current repo state
 
