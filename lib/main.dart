@@ -156,6 +156,10 @@ const gardenBeds = [
   GardenBedZone(number: 17, bounds: Rect.fromLTWH(0.06, 0.00, 0.86, 0.035), status: 'Wait', cropSummary: 'First year fruiting canes', lastSpray: 'Berry spray · safe 22 May'),
 ];
 
+GardenBedZone bedByNumber(int number) {
+  return gardenBeds.firstWhere((bed) => bed.number == number);
+}
+
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
@@ -304,39 +308,249 @@ class GardenMapScreen extends StatefulWidget {
 }
 
 class _GardenMapScreenState extends State<GardenMapScreen> {
-  GardenBedZone selectedBed = gardenBeds.first;
+  GardenBedZone selectedBed = bedByNumber(4);
+
+  void selectBed(GardenBedZone bed) {
+    setState(() => selectedBed = bed);
+  }
+
+  void selectPreviousBed() {
+    final previousNumber = selectedBed.number == 1 ? gardenBeds.length : selectedBed.number - 1;
+    selectBed(bedByNumber(previousNumber));
+  }
+
+  void selectNextBed() {
+    final nextNumber = selectedBed.number == gardenBeds.length ? 1 : selectedBed.number + 1;
+    selectBed(bedByNumber(nextNumber));
+  }
 
   @override
   Widget build(BuildContext context) {
     return AppPage(
       title: 'Garden Map',
-      subtitle: 'Tap a bed to inspect spray status',
+      subtitle: 'Tap a bed, or use the bed picker below',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const MapHelpCard(),
+          const SizedBox(height: 12),
+          const MapLegendCard(),
+          const SizedBox(height: 12),
           Container(
             height: 470,
             padding: const EdgeInsets.all(12),
             decoration: cardDecoration,
             child: InteractiveGardenMap(
               selectedBed: selectedBed,
-              onBedSelected: (bed) => setState(() => selectedBed = bed),
+              onBedSelected: selectBed,
             ),
+          ),
+          const SizedBox(height: 12),
+          BedQuickPicker(
+            selectedBed: selectedBed,
+            onBedSelected: selectBed,
+          ),
+          const SizedBox(height: 12),
+          BedNavigationControls(
+            selectedBed: selectedBed,
+            onPrevious: selectPreviousBed,
+            onNext: selectNextBed,
           ),
           const SizedBox(height: 16),
           BedDetailCard(bed: selectedBed),
-          const SizedBox(height: 12),
-          const InfoCard(
-            title: '17 beds mapped',
-            body: 'This first pass uses tappable coordinate zones based on the GrowVeg screenshots.',
-            icon: CupertinoIcons.map_fill,
-          ),
         ],
       ),
     );
   }
 }
 
+class MapHelpCard extends StatelessWidget {
+  const MapHelpCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const InfoCard(
+      title: 'How to use the map',
+      body: 'Tap a bed to inspect it. Orange beds are still waiting before harvest. Blue outline means selected.',
+      icon: CupertinoIcons.hand_tap_fill,
+    );
+  }
+}
+
+class MapLegendCard extends StatelessWidget {
+  const MapLegendCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: cardDecoration,
+      child: const Row(
+        children: [
+          LegendPill(label: 'Selected', color: CupertinoColors.activeBlue),
+          SizedBox(width: 8),
+          LegendPill(label: 'Wait', color: CupertinoColors.systemOrange),
+          SizedBox(width: 8),
+          LegendPill(label: 'Safe', color: CupertinoColors.activeGreen),
+        ],
+      ),
+    );
+  }
+}
+
+class LegendPill extends StatelessWidget {
+  const LegendPill({required this.label, required this.color, super.key});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF2F2F7),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class BedQuickPicker extends StatelessWidget {
+  const BedQuickPicker({
+    required this.selectedBed,
+    required this.onBedSelected,
+    super.key,
+  });
+
+  final GardenBedZone selectedBed;
+  final ValueChanged<GardenBedZone> onBedSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 46,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: gardenBeds.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final bed = gardenBeds[index];
+          final isSelected = bed.number == selectedBed.number;
+          final isWaiting = bed.status == 'Wait';
+          return CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: () => onBedSelected(bed),
+            child: Container(
+              width: 46,
+              height: 46,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? CupertinoColors.activeBlue
+                    : isWaiting
+                        ? const Color(0xFFFFF1D6)
+                        : CupertinoColors.white,
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(
+                  color: isSelected
+                      ? CupertinoColors.activeBlue
+                      : isWaiting
+                          ? CupertinoColors.systemOrange
+                          : const Color(0xFFD1D1D6),
+                  width: 2,
+                ),
+              ),
+              child: Text(
+                bed.number.toString(),
+                style: TextStyle(
+                  color: isSelected ? CupertinoColors.white : CupertinoColors.black,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class BedNavigationControls extends StatelessWidget {
+  const BedNavigationControls({
+    required this.selectedBed,
+    required this.onPrevious,
+    required this.onNext,
+    super.key,
+  });
+
+  final GardenBedZone selectedBed;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: cardDecoration,
+      child: Row(
+        children: [
+          Expanded(
+            child: CupertinoButton(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              color: const Color(0xFFE5E5EA),
+              borderRadius: BorderRadius.circular(14),
+              onPressed: onPrevious,
+              child: const Text(
+                'Previous',
+                style: TextStyle(color: CupertinoColors.black, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Text(
+              'Bed ${selectedBed.number}',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+          Expanded(
+            child: CupertinoButton(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              color: const Color(0xFFE5E5EA),
+              borderRadius: BorderRadius.circular(14),
+              onPressed: onNext,
+              child: const Text(
+                'Next',
+                style: TextStyle(color: CupertinoColors.black, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}\n
 class InteractiveGardenMap extends StatelessWidget {
   const InteractiveGardenMap({
     required this.selectedBed,
@@ -357,7 +571,7 @@ class InteractiveGardenMap extends StatelessWidget {
           onTapDown: (details) {
             final point = details.localPosition;
             for (final bed in gardenBeds.reversed) {
-              final rect = _scaleRect(bed.bounds, size);
+              final rect = _scaleRect(bed.bounds, size).inflate(4);
               if (rect.contains(point)) {
                 onBedSelected(bed);
                 return;
@@ -398,7 +612,11 @@ class GardenMapPainter extends CustomPainter {
       final rect = _scaleRect(bed.bounds, size);
       final isSelected = bed.number == selectedBed.number;
       final isWaiting = bed.status == 'Wait';
-      final fill = isWaiting ? const Color(0xFFFFF1D6) : const Color(0xFFFFFFFF);
+      final fill = isSelected
+          ? const Color(0xFFEAF3FF)
+          : isWaiting
+              ? const Color(0xFFFFF1D6)
+              : const Color(0xFFFFFFFF);
       final border = isSelected
           ? CupertinoColors.activeBlue
           : isWaiting
@@ -412,6 +630,15 @@ class GardenMapPainter extends CustomPainter {
       final radius = Radius.circular(isSelected ? 12 : 7);
       canvas.drawRRect(RRect.fromRectAndRadius(rect, radius), bedPaint);
       canvas.drawRRect(RRect.fromRectAndRadius(rect, radius), borderPaint);
+
+      if (isSelected) {
+        final haloPaint = Paint()
+          ..color = const Color(0x553A8BFF)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 8;
+        canvas.drawRRect(RRect.fromRectAndRadius(rect.inflate(4), radius), haloPaint);
+      }
+
       _drawBedNumber(canvas, rect.center, bed.number, isSelected: isSelected);
     }
   }
@@ -423,18 +650,18 @@ class GardenMapPainter extends CustomPainter {
   }
 
   void _drawBedNumber(Canvas canvas, Offset center, int number, {required bool isSelected}) {
-    final circlePaint = Paint()..color = CupertinoColors.white;
+    final circlePaint = Paint()..color = isSelected ? CupertinoColors.activeBlue : CupertinoColors.white;
     final outlinePaint = Paint()
       ..color = isSelected ? CupertinoColors.activeBlue : CupertinoColors.black
       ..style = PaintingStyle.stroke
       ..strokeWidth = isSelected ? 3 : 2;
-    canvas.drawCircle(center, 15, circlePaint);
-    canvas.drawCircle(center, 15, outlinePaint);
+    canvas.drawCircle(center, isSelected ? 17 : 15, circlePaint);
+    canvas.drawCircle(center, isSelected ? 17 : 15, outlinePaint);
     final textPainter = TextPainter(
       text: TextSpan(
         text: number.toString(),
         style: TextStyle(
-          color: CupertinoColors.black,
+          color: isSelected ? CupertinoColors.white : CupertinoColors.black,
           fontWeight: FontWeight.w800,
           fontSize: number >= 10 ? 14 : 16,
         ),
@@ -471,17 +698,55 @@ class BedDetailCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isWaiting = bed.status == 'Wait';
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: cardDecoration,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: CupertinoColors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: CupertinoColors.activeBlue, width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(
+              Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: CupertinoColors.activeBlue,
+                  borderRadius: BorderRadius.circular(15),
+                ),
                 child: Text(
-                  'Bed ${bed.number}',
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                  bed.number.toString(),
+                  style: const TextStyle(
+                    color: CupertinoColors.white,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Bed ${bed.number}',
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                    ),
+                    Text(
+                      bed.cropSummary,
+                      style: const TextStyle(color: CupertinoColors.secondaryLabel),
+                    ),
+                  ],
                 ),
               ),
               Container(
@@ -501,16 +766,44 @@ class BedDetailCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(bed.cropSummary, style: const TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
-          Text(bed.lastSpray, style: const TextStyle(color: CupertinoColors.secondaryLabel)),
           const SizedBox(height: 14),
-          CupertinoButton.filled(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            borderRadius: BorderRadius.circular(14),
-            onPressed: () {},
-            child: Text('Log spray for Bed ${bed.number}'),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF2F2F7),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              bed.lastSpray,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: CupertinoButton.filled(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  borderRadius: BorderRadius.circular(14),
+                  onPressed: () {},
+                  child: Text('Log spray'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: CupertinoButton(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  color: const Color(0xFFE5E5EA),
+                  borderRadius: BorderRadius.circular(14),
+                  onPressed: () {},
+                  child: const Text(
+                    'View history',
+                    style: TextStyle(color: CupertinoColors.black, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
