@@ -1,0 +1,15 @@
+name: spray_tracker
+description: Utility-first iOS-style spray tracking app for a vegetable garden.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+flutter:
+  uses-material-design: true
