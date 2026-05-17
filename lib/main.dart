@@ -59,23 +59,25 @@ class BedZone {
 }
 
 const beds = [
-  BedZone(1, Rect.fromLTWH(.12, .05, .16, .06), 'Safe', 'Fruit corner', 'No recent spray'),
-  BedZone(2, Rect.fromLTWH(.12, .12, .36, .24), 'Safe', 'Large left bed', 'No recent spray'),
-  BedZone(3, Rect.fromLTWH(.50, .05, .09, .06), 'Safe', 'Top small bed', 'No recent spray'),
-  BedZone(4, Rect.fromLTWH(.60, .05, .32, .08), 'Wait', 'Strawberries', 'Neem oil · safe 20 May'),
-  BedZone(5, Rect.fromLTWH(.60, .15, .32, .08), 'Wait', 'Raspberries / strawberries', 'Neem oil · safe 20 May'),
-  BedZone(6, Rect.fromLTWH(.60, .25, .32, .08), 'Safe', 'Empty bed', 'No recent spray'),
-  BedZone(7, Rect.fromLTWH(.60, .35, .32, .08), 'Safe', 'Empty bed', 'No recent spray'),
-  BedZone(8, Rect.fromLTWH(.60, .47, .32, .06), 'Wait', 'Raspberries / fruit tree', 'Copper spray · safe 23 May'),
-  BedZone(9, Rect.fromLTWH(.60, .55, .32, .08), 'Safe', 'Empty bed', 'No recent spray'),
-  BedZone(10, Rect.fromLTWH(.60, .65, .32, .08), 'Safe', 'Empty bed', 'No recent spray'),
-  BedZone(11, Rect.fromLTWH(.60, .76, .32, .08), 'Safe', 'Lower-right bed', 'No recent spray'),
-  BedZone(12, Rect.fromLTWH(.11, .45, .34, .08), 'Safe', 'Left middle bed', 'No recent spray'),
-  BedZone(13, Rect.fromLTWH(.11, .56, .34, .08), 'Safe', 'Asparagus', 'Seaweed tonic · safe now'),
-  BedZone(14, Rect.fromLTWH(.11, .67, .34, .08), 'Safe', 'Left lower bed', 'No recent spray'),
-  BedZone(15, Rect.fromLTWH(.01, .79, .45, .08), 'Safe', 'Lower-left bed', 'No recent spray'),
-  BedZone(16, Rect.fromLTWH(.01, .91, .91, .035), 'Safe', 'Long bottom bed', 'No recent spray'),
-  BedZone(17, Rect.fromLTWH(.06, .00, .86, .035), 'Wait', 'First year fruiting canes', 'Berry spray · safe 22 May'),
+  // Bed 1 is intentionally nested inside Bed 2, matching the GrowVeg reference.
+  BedZone(1, Rect.fromLTWH(.10, .08, .09, .08), 'Safe', 'Fruit corner inset', 'No recent spray'),
+  // Bed 2 is the large left compound plot. It has an internal split line on the right side.
+  BedZone(2, Rect.fromLTWH(.08, .06, .40, .30), 'Safe', 'Large compound bed', 'No recent spray'),
+  BedZone(3, Rect.fromLTWH(.53, .07, .11, .09), 'Safe', 'Top small bed', 'No recent spray'),
+  BedZone(4, Rect.fromLTWH(.69, .05, .27, .08), 'Wait', 'Strawberries', 'Neem oil · safe 20 May'),
+  BedZone(5, Rect.fromLTWH(.69, .16, .27, .08), 'Wait', 'Raspberries / strawberries', 'Neem oil · safe 20 May'),
+  BedZone(6, Rect.fromLTWH(.69, .27, .27, .08), 'Safe', 'Empty bed', 'No recent spray'),
+  BedZone(7, Rect.fromLTWH(.69, .38, .27, .08), 'Safe', 'Empty bed', 'No recent spray'),
+  BedZone(8, Rect.fromLTWH(.69, .49, .27, .07), 'Wait', 'Raspberries / fruit tree', 'Copper spray · safe 23 May'),
+  BedZone(9, Rect.fromLTWH(.69, .59, .27, .08), 'Safe', 'Empty bed', 'No recent spray'),
+  BedZone(10, Rect.fromLTWH(.69, .70, .27, .08), 'Safe', 'Empty bed', 'No recent spray'),
+  BedZone(11, Rect.fromLTWH(.69, .81, .27, .08), 'Safe', 'Lower-right bed', 'No recent spray'),
+  BedZone(12, Rect.fromLTWH(.08, .40, .40, .07), 'Safe', 'Left middle bed', 'No recent spray'),
+  BedZone(13, Rect.fromLTWH(.08, .52, .40, .07), 'Safe', 'Asparagus', 'Seaweed tonic · safe now'),
+  BedZone(14, Rect.fromLTWH(.08, .64, .40, .07), 'Safe', 'Left lower bed', 'No recent spray'),
+  BedZone(15, Rect.fromLTWH(.08, .76, .40, .07), 'Safe', 'Lower-left bed', 'No recent spray'),
+  BedZone(16, Rect.fromLTWH(.08, .92, .88, .035), 'Safe', 'Long bottom bed', 'No recent spray'),
+  BedZone(17, Rect.fromLTWH(.08, .00, .88, .035), 'Wait', 'First year fruiting canes', 'Berry spray · safe 22 May'),
 ];
 
 BedZone bedByNumber(int number) => beds.firstWhere((bed) => bed.number == number);
@@ -152,7 +154,7 @@ class _GardenMapScreenState extends State<GardenMapScreen> {
           const LegendCard(),
           const SizedBox(height: 12),
           Container(
-            height: 470,
+            height: 500,
             padding: const EdgeInsets.all(12),
             decoration: cardDecoration,
             child: GardenMap(selected: selected, onSelect: select),
@@ -180,7 +182,9 @@ class GardenMap extends StatelessWidget {
           return GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTapDown: (details) {
-              for (final bed in beds.reversed) {
+              // Bed 1 lives inside Bed 2, so it must be hit-tested first.
+              final hitOrder = [bedByNumber(1), ...beds.reversed.where((bed) => bed.number != 1)];
+              for (final bed in hitOrder) {
                 if (_scale(bed.bounds, size).inflate(5).contains(details.localPosition)) {
                   onSelect(bed);
                   return;
@@ -211,31 +215,47 @@ class GardenMapPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
     }
 
-    _path(canvas, size, const Rect.fromLTWH(.27, .08, .035, .30));
-    _path(canvas, size, const Rect.fromLTWH(.53, .08, .035, .64));
+    _path(canvas, size, const Rect.fromLTWH(.50, .10, .045, .74));
+    _path(canvas, size, const Rect.fromLTWH(.48, .16, .19, .035));
+    _path(canvas, size, const Rect.fromLTWH(.48, .80, .19, .035));
 
-    for (final bed in beds) {
-      final rect = _scale(bed.bounds, size);
-      final isSelected = bed.number == selected.number;
-      final isWait = bed.status == 'Wait';
-      final fill = isSelected ? const Color(0xFFEAF3FF) : isWait ? const Color(0xFFFFF1D6) : CupertinoColors.white;
-      final stroke = isSelected ? CupertinoColors.activeBlue : isWait ? CupertinoColors.systemOrange : const Color(0xFF7A3B12);
-      final rrect = RRect.fromRectAndRadius(rect, Radius.circular(isSelected ? 12 : 7));
-      canvas.drawRRect(rrect, Paint()..color = fill);
-      if (isSelected) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(rect.inflate(4), const Radius.circular(14)),
-          Paint()..color = const Color(0x553A8BFF)..style = PaintingStyle.stroke..strokeWidth = 8,
-        );
-      }
-      canvas.drawRRect(rrect, Paint()..color = stroke..style = PaintingStyle.stroke..strokeWidth = isSelected ? 4 : 2);
-      _number(canvas, rect.center, bed.number, isSelected);
+    final drawOrder = [...beds.where((bed) => bed.number != 1), bedByNumber(1)];
+    for (final bed in drawOrder) {
+      _drawBed(canvas, size, bed);
     }
+  }
+
+  void _drawBed(Canvas canvas, Size size, BedZone bed) {
+    final rect = _scale(bed.bounds, size);
+    final isSelected = bed.number == selected.number;
+    final isWait = bed.status == 'Wait';
+    final fill = isSelected ? const Color(0xFFEAF3FF) : isWait ? const Color(0xFFFFF1D6) : CupertinoColors.white;
+    final stroke = isSelected ? CupertinoColors.activeBlue : isWait ? CupertinoColors.systemOrange : const Color(0xFF7A3B12);
+    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(isSelected ? 12 : 7));
+    canvas.drawRRect(rrect, Paint()..color = fill);
+
+    if (isSelected) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect.inflate(4), const Radius.circular(14)),
+        Paint()..color = const Color(0x553A8BFF)..style = PaintingStyle.stroke..strokeWidth = 8,
+      );
+    }
+
+    canvas.drawRRect(rrect, Paint()..color = stroke..style = PaintingStyle.stroke..strokeWidth = isSelected ? 4 : 2);
+
+    if (bed.number == 2) {
+      // GrowVeg reference: Bed 2 is a large compound bed with a right-side split.
+      final splitX = rect.left + rect.width * .70;
+      final splitPaint = Paint()..color = const Color(0x557A3B12)..strokeWidth = 1.4;
+      canvas.drawLine(Offset(splitX, rect.top + 4), Offset(splitX, rect.bottom - 4), splitPaint);
+    }
+
+    _number(canvas, rect.center, bed.number, isSelected);
   }
 
   void _path(Canvas canvas, Size size, Rect rect) {
     canvas.drawRRect(
-      RRect.fromRectAndRadius(_scale(rect, size), const Radius.circular(3)),
+      RRect.fromRectAndRadius(_scale(rect, size), const Radius.circular(4)),
       Paint()..color = const Color(0xFF9A9AA0),
     );
   }
@@ -288,7 +308,7 @@ class BedPicker extends StatelessWidget {
                   borderRadius: BorderRadius.circular(15),
                   border: Border.all(color: isSelected ? CupertinoColors.activeBlue : isWait ? CupertinoColors.systemOrange : const Color(0xFFD1D1D6), width: 2),
                 ),
-                child: Text('$index'.replaceFirst('$index', '${bed.number}'), style: TextStyle(color: isSelected ? CupertinoColors.white : CupertinoColors.black, fontWeight: FontWeight.w800)),
+                child: Text('${bed.number}', style: TextStyle(color: isSelected ? CupertinoColors.white : CupertinoColors.black, fontWeight: FontWeight.w800)),
               ),
             );
           },
