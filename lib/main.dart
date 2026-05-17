@@ -40,6 +40,10 @@ class MainShell extends StatelessWidget {
             label: 'Log',
           ),
           BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.map_fill),
+            label: 'Map',
+          ),
+          BottomNavigationBarItem(
             icon: Icon(CupertinoIcons.time),
             label: 'History',
           ),
@@ -55,7 +59,8 @@ class MainShell extends StatelessWidget {
             return switch (index) {
               0 => const DashboardScreen(),
               1 => const LogSprayScreen(),
-              2 => const SprayHistoryScreen(),
+              2 => const GardenMapScreen(),
+              3 => const SprayHistoryScreen(),
               _ => const ProductLibraryScreen(),
             };
           },
@@ -83,6 +88,22 @@ class SprayRecord {
   final String safeDateLabel;
   final String status;
   final String reason;
+}
+
+class GardenBedZone {
+  const GardenBedZone({
+    required this.number,
+    required this.bounds,
+    required this.status,
+    required this.cropSummary,
+    required this.lastSpray,
+  });
+
+  final int number;
+  final Rect bounds;
+  final String status;
+  final String cropSummary;
+  final String lastSpray;
 }
 
 const demoRecords = [
@@ -113,6 +134,26 @@ const demoRecords = [
     status: 'Wait',
     reason: 'Blight prevention',
   ),
+];
+
+const gardenBeds = [
+  GardenBedZone(number: 1, bounds: Rect.fromLTWH(0.12, 0.05, 0.16, 0.06), status: 'Safe', cropSummary: 'Fruit corner', lastSpray: 'No recent spray'),
+  GardenBedZone(number: 2, bounds: Rect.fromLTWH(0.12, 0.12, 0.36, 0.24), status: 'Safe', cropSummary: 'Large left bed', lastSpray: 'No recent spray'),
+  GardenBedZone(number: 3, bounds: Rect.fromLTWH(0.50, 0.05, 0.09, 0.06), status: 'Safe', cropSummary: 'Top small bed', lastSpray: 'No recent spray'),
+  GardenBedZone(number: 4, bounds: Rect.fromLTWH(0.60, 0.05, 0.32, 0.08), status: 'Wait', cropSummary: 'Strawberries', lastSpray: 'Neem oil · safe 20 May'),
+  GardenBedZone(number: 5, bounds: Rect.fromLTWH(0.60, 0.15, 0.32, 0.08), status: 'Wait', cropSummary: 'Raspberries / strawberries', lastSpray: 'Neem oil · safe 20 May'),
+  GardenBedZone(number: 6, bounds: Rect.fromLTWH(0.60, 0.25, 0.32, 0.08), status: 'Safe', cropSummary: 'Empty bed', lastSpray: 'No recent spray'),
+  GardenBedZone(number: 7, bounds: Rect.fromLTWH(0.60, 0.35, 0.32, 0.08), status: 'Safe', cropSummary: 'Empty bed', lastSpray: 'No recent spray'),
+  GardenBedZone(number: 8, bounds: Rect.fromLTWH(0.60, 0.47, 0.32, 0.06), status: 'Wait', cropSummary: 'Raspberries / fruit tree', lastSpray: 'Copper spray · safe 23 May'),
+  GardenBedZone(number: 9, bounds: Rect.fromLTWH(0.60, 0.55, 0.32, 0.08), status: 'Safe', cropSummary: 'Empty bed', lastSpray: 'No recent spray'),
+  GardenBedZone(number: 10, bounds: Rect.fromLTWH(0.60, 0.65, 0.32, 0.08), status: 'Safe', cropSummary: 'Empty bed', lastSpray: 'No recent spray'),
+  GardenBedZone(number: 11, bounds: Rect.fromLTWH(0.60, 0.76, 0.32, 0.08), status: 'Safe', cropSummary: 'Lower-right bed', lastSpray: 'No recent spray'),
+  GardenBedZone(number: 12, bounds: Rect.fromLTWH(0.11, 0.45, 0.34, 0.08), status: 'Safe', cropSummary: 'Left middle bed', lastSpray: 'No recent spray'),
+  GardenBedZone(number: 13, bounds: Rect.fromLTWH(0.11, 0.56, 0.34, 0.08), status: 'Safe', cropSummary: 'Asparagus', lastSpray: 'Seaweed tonic · safe now'),
+  GardenBedZone(number: 14, bounds: Rect.fromLTWH(0.11, 0.67, 0.34, 0.08), status: 'Safe', cropSummary: 'Left lower bed', lastSpray: 'No recent spray'),
+  GardenBedZone(number: 15, bounds: Rect.fromLTWH(0.01, 0.79, 0.45, 0.08), status: 'Safe', cropSummary: 'Lower-left bed', lastSpray: 'No recent spray'),
+  GardenBedZone(number: 16, bounds: Rect.fromLTWH(0.01, 0.91, 0.91, 0.035), status: 'Safe', cropSummary: 'Long bottom bed', lastSpray: 'No recent spray'),
+  GardenBedZone(number: 17, bounds: Rect.fromLTWH(0.06, 0.00, 0.86, 0.035), status: 'Wait', cropSummary: 'First year fruiting canes', lastSpray: 'Berry spray · safe 22 May'),
 ];
 
 class DashboardScreen extends StatelessWidget {
@@ -157,8 +198,8 @@ class SafetySummaryCard extends StatelessWidget {
         Expanded(
           child: MetricCard(
             label: 'Safe now',
-            value: '6',
-            detail: 'crops',
+            value: '13',
+            detail: 'beds',
             icon: CupertinoIcons.check_mark_circled_solid,
           ),
         ),
@@ -166,8 +207,8 @@ class SafetySummaryCard extends StatelessWidget {
         Expanded(
           child: MetricCard(
             label: 'Do not harvest',
-            value: '2',
-            detail: 'areas',
+            value: '4',
+            detail: 'beds',
             icon: CupertinoIcons.exclamationmark_triangle_fill,
           ),
         ),
@@ -237,18 +278,240 @@ class LogSprayScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const AppPage(
       title: 'Log Spray',
-      subtitle: 'Fast entry first. Beds come later.',
+      subtitle: 'Fast entry first. Beds can be selected from the map.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           FormPreviewTile(label: 'Product', value: 'Neem oil'),
           FormPreviewTile(label: 'Crop', value: 'Tomatoes'),
-          FormPreviewTile(label: 'Area', value: 'Greenhouse / manual text'),
+          FormPreviewTile(label: 'Beds', value: '4, 5'),
           FormPreviewTile(label: 'Reason', value: 'Aphids'),
           FormPreviewTile(label: 'Withholding', value: '3 days'),
           FormPreviewTile(label: 'Safe harvest date', value: '20 May 2026'),
           SizedBox(height: 20),
           SaveSprayButton(),
+        ],
+      ),
+    );
+  }
+}
+
+class GardenMapScreen extends StatefulWidget {
+  const GardenMapScreen({super.key});
+
+  @override
+  State<GardenMapScreen> createState() => _GardenMapScreenState();
+}
+
+class _GardenMapScreenState extends State<GardenMapScreen> {
+  GardenBedZone selectedBed = gardenBeds.first;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppPage(
+      title: 'Garden Map',
+      subtitle: 'Tap a bed to inspect spray status',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            height: 470,
+            padding: const EdgeInsets.all(12),
+            decoration: cardDecoration,
+            child: InteractiveGardenMap(
+              selectedBed: selectedBed,
+              onBedSelected: (bed) => setState(() => selectedBed = bed),
+            ),
+          ),
+          const SizedBox(height: 16),
+          BedDetailCard(bed: selectedBed),
+          const SizedBox(height: 12),
+          const InfoCard(
+            title: '17 beds mapped',
+            body: 'This first pass uses tappable coordinate zones based on the GrowVeg screenshots.',
+            icon: CupertinoIcons.map_fill,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class InteractiveGardenMap extends StatelessWidget {
+  const InteractiveGardenMap({
+    required this.selectedBed,
+    required this.onBedSelected,
+    super.key,
+  });
+
+  final GardenBedZone selectedBed;
+  final ValueChanged<GardenBedZone> onBedSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = Size(constraints.maxWidth, constraints.maxHeight);
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (details) {
+            final point = details.localPosition;
+            for (final bed in gardenBeds.reversed) {
+              final rect = _scaleRect(bed.bounds, size);
+              if (rect.contains(point)) {
+                onBedSelected(bed);
+                return;
+              }
+            }
+          },
+          child: CustomPaint(
+            painter: GardenMapPainter(selectedBed: selectedBed),
+            size: Size.infinite,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class GardenMapPainter extends CustomPainter {
+  const GardenMapPainter({required this.selectedBed});
+
+  final GardenBedZone selectedBed;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final gridPaint = Paint()
+      ..color = const Color(0xFFE5E5EA)
+      ..strokeWidth = 0.5;
+    for (double x = 0; x < size.width; x += 12) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+    }
+    for (double y = 0; y < size.height; y += 12) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+
+    _drawPath(canvas, size, Rect.fromLTWH(0.27, 0.08, 0.035, 0.30));
+    _drawPath(canvas, size, Rect.fromLTWH(0.53, 0.08, 0.035, 0.64));
+
+    for (final bed in gardenBeds) {
+      final rect = _scaleRect(bed.bounds, size);
+      final isSelected = bed.number == selectedBed.number;
+      final isWaiting = bed.status == 'Wait';
+      final fill = isWaiting ? const Color(0xFFFFF1D6) : const Color(0xFFFFFFFF);
+      final border = isSelected
+          ? CupertinoColors.activeBlue
+          : isWaiting
+              ? CupertinoColors.systemOrange
+              : const Color(0xFF7A3B12);
+      final bedPaint = Paint()..color = fill;
+      final borderPaint = Paint()
+        ..color = border
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = isSelected ? 4 : 2;
+      final radius = Radius.circular(isSelected ? 12 : 7);
+      canvas.drawRRect(RRect.fromRectAndRadius(rect, radius), bedPaint);
+      canvas.drawRRect(RRect.fromRectAndRadius(rect, radius), borderPaint);
+      _drawBedNumber(canvas, rect.center, bed.number, isSelected: isSelected);
+    }
+  }
+
+  void _drawPath(Canvas canvas, Size size, Rect normalizedRect) {
+    final rect = _scaleRect(normalizedRect, size);
+    final paint = Paint()..color = const Color(0xFF9A9AA0);
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(3)), paint);
+  }
+
+  void _drawBedNumber(Canvas canvas, Offset center, int number, {required bool isSelected}) {
+    final circlePaint = Paint()..color = CupertinoColors.white;
+    final outlinePaint = Paint()
+      ..color = isSelected ? CupertinoColors.activeBlue : CupertinoColors.black
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = isSelected ? 3 : 2;
+    canvas.drawCircle(center, 15, circlePaint);
+    canvas.drawCircle(center, 15, outlinePaint);
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: number.toString(),
+        style: TextStyle(
+          color: CupertinoColors.black,
+          fontWeight: FontWeight.w800,
+          fontSize: number >= 10 ? 14 : 16,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    textPainter.paint(
+      canvas,
+      center - Offset(textPainter.width / 2, textPainter.height / 2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant GardenMapPainter oldDelegate) {
+    return oldDelegate.selectedBed.number != selectedBed.number;
+  }
+}
+
+Rect _scaleRect(Rect normalizedRect, Size size) {
+  return Rect.fromLTWH(
+    normalizedRect.left * size.width,
+    normalizedRect.top * size.height,
+    normalizedRect.width * size.width,
+    normalizedRect.height * size.height,
+  );
+}
+
+class BedDetailCard extends StatelessWidget {
+  const BedDetailCard({required this.bed, super.key});
+
+  final GardenBedZone bed;
+
+  @override
+  Widget build(BuildContext context) {
+    final isWaiting = bed.status == 'Wait';
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: cardDecoration,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Bed ${bed.number}',
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isWaiting ? const Color(0xFFFFF1D6) : const Color(0xFFE5F7E8),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  bed.status,
+                  style: TextStyle(
+                    color: isWaiting ? CupertinoColors.systemOrange : CupertinoColors.activeGreen,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(bed.cropSummary, style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(bed.lastSpray, style: const TextStyle(color: CupertinoColors.secondaryLabel)),
+          const SizedBox(height: 14),
+          CupertinoButton.filled(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            borderRadius: BorderRadius.circular(14),
+            onPressed: () {},
+            child: Text('Log spray for Bed ${bed.number}'),
+          ),
         ],
       ),
     );
@@ -292,7 +555,7 @@ class ProductLibraryScreen extends StatelessWidget {
           SizedBox(height: 12),
           InfoCard(
             title: 'Manual beds later',
-            body: 'The MVP accepts free-text areas now. Bed management will become its own feature.',
+            body: 'The MVP accepts bed selection now. Full bed editing will become its own feature.',
             icon: CupertinoIcons.square_grid_3x2_fill,
           ),
         ],
