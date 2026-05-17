@@ -10,7 +10,6 @@ class AppColor {
   static const greenSoft = Color(0xFFE7F4EA);
   static const orange = Color(0xFFE48A2A);
   static const orangeSoft = Color(0xFFFFEEDB);
-  static const blue = Color(0xFF2578D5);
   static const red = Color(0xFFC84D42);
   static const redSoft = Color(0xFFFFE8E5);
   static const text = Color(0xFF1F241F);
@@ -75,7 +74,11 @@ class SprayRecord {
 }
 
 class BedDisplayState {
-  const BedDisplayState({required this.status, required this.lastSpray, required this.daysRemaining});
+  const BedDisplayState({
+    required this.status,
+    required this.lastSpray,
+    required this.daysRemaining,
+  });
 
   final String status;
   final String lastSpray;
@@ -108,7 +111,6 @@ const defaultProducts = [
   SprayProduct('Seaweed tonic', 'Plant health', 0),
 ];
 
-GardenBed bedByNumber(int number) => gardenBeds.firstWhere((bed) => bed.number == number);
 String dateLabel(DateTime date) => '${date.day}/${date.month}/${date.year}';
 
 class SprayTrackerHome extends StatefulWidget {
@@ -119,7 +121,7 @@ class SprayTrackerHome extends StatefulWidget {
 }
 
 class _SprayTrackerHomeState extends State<SprayTrackerHome> {
-  late final CupertinoTabController tabController;
+  int currentTab = 0;
   int nextRecordId = 4;
   Set<int> selectedBeds = {4};
   List<SprayRecord> records = [];
@@ -127,24 +129,44 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
   @override
   void initState() {
     super.initState();
-    tabController = CupertinoTabController();
     final now = DateTime.now();
     records = [
-      SprayRecord(id: 1, bedNumbers: const [4, 5], product: 'Neem oil', reason: 'Aphids', sprayedAt: now.subtract(const Duration(days: 1)), withholdingDays: 3),
-      SprayRecord(id: 2, bedNumbers: const [8], product: 'Copper spray', reason: 'Blight prevention', sprayedAt: now.subtract(const Duration(days: 2)), withholdingDays: 7),
-      SprayRecord(id: 3, bedNumbers: const [17], product: 'Berry spray', reason: 'Cane check', sprayedAt: now.subtract(const Duration(days: 1)), withholdingDays: 4),
+      SprayRecord(
+        id: 1,
+        bedNumbers: const [4, 5],
+        product: 'Neem oil',
+        reason: 'Aphids',
+        sprayedAt: now.subtract(const Duration(days: 1)),
+        withholdingDays: 3,
+      ),
+      SprayRecord(
+        id: 2,
+        bedNumbers: const [8],
+        product: 'Copper spray',
+        reason: 'Blight prevention',
+        sprayedAt: now.subtract(const Duration(days: 2)),
+        withholdingDays: 7,
+      ),
+      SprayRecord(
+        id: 3,
+        bedNumbers: const [17],
+        product: 'Berry spray',
+        reason: 'Cane check',
+        sprayedAt: now.subtract(const Duration(days: 1)),
+        withholdingDays: 4,
+      ),
     ];
-  }
-
-  @override
-  void dispose() {
-    tabController.dispose();
-    super.dispose();
   }
 
   BedDisplayState stateForBed(int bedNumber) {
     final latest = records.where((record) => record.bedNumbers.contains(bedNumber)).firstOrNull;
-    if (latest == null) return const BedDisplayState(status: 'Safe', lastSpray: 'No recent spray', daysRemaining: 0);
+    if (latest == null) {
+      return const BedDisplayState(
+        status: 'Safe',
+        lastSpray: 'No recent spray',
+        daysRemaining: 0,
+      );
+    }
 
     final now = DateTime.now();
     final waiting = latest.safeDate.isAfter(now);
@@ -159,14 +181,23 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
   int get waitingCount => gardenBeds.where((bed) => stateForBed(bed.number).status == 'Wait').length;
   int get safeCount => gardenBeds.length - waitingCount;
 
+  void setTab(int index) {
+    setState(() => currentTab = index);
+  }
+
   void openLogForBeds(Set<int> beds) {
     setState(() {
       selectedBeds = beds.isEmpty ? {4} : {...beds};
-      tabController.index = 1;
+      currentTab = 1;
     });
   }
 
-  void logSpray({required Set<int> bedNumbers, required SprayProduct product, required String reason, required int withholdingDays}) {
+  void logSpray({
+    required Set<int> bedNumbers,
+    required SprayProduct product,
+    required String reason,
+    required int withholdingDays,
+  }) {
     if (bedNumbers.isEmpty) return;
     setState(() {
       records.insert(
@@ -181,12 +212,14 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
         ),
       );
       selectedBeds = {...bedNumbers};
-      tabController.index = 0;
+      currentTab = 0;
     });
   }
 
   void removeRecord(int recordId) {
-    setState(() => records.removeWhere((record) => record.id == recordId));
+    setState(() {
+      records = records.where((record) => record.id != recordId).toList();
+    });
   }
 
   void clearBed(int bedNumber) {
@@ -212,40 +245,58 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoTabScaffold(
-      controller: tabController,
-      tabBar: CupertinoTabBar(
-        backgroundColor: const Color(0xF8FFFCF6),
-        activeColor: AppColor.green,
-        inactiveColor: AppColor.muted,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(CupertinoIcons.house_fill), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(CupertinoIcons.plus_circle_fill), label: 'Log'),
-          BottomNavigationBarItem(icon: Icon(CupertinoIcons.square_grid_2x2_fill), label: 'Beds'),
-          BottomNavigationBarItem(icon: Icon(CupertinoIcons.time), label: 'History'),
-          BottomNavigationBarItem(icon: Icon(CupertinoIcons.cube_box_fill), label: 'Products'),
-        ],
+    final pages = [
+      DashboardScreen(
+        safeCount: safeCount,
+        waitingCount: waitingCount,
+        records: records,
+        onOpenLog: () => openLogForBeds(selectedBeds),
       ),
-      tabBuilder: (context, index) {
-        return CupertinoTabView(
-          builder: (_) => switch (index) {
-            0 => DashboardScreen(
-                safeCount: safeCount,
-                waitingCount: waitingCount,
-                records: records,
-                onOpenLog: () => openLogForBeds(selectedBeds),
+      LogSprayScreen(
+        key: ValueKey(selectedBeds.join(',')),
+        initialBeds: selectedBeds,
+        onSubmit: logSpray,
+      ),
+      BedsScreen(
+        bedState: stateForBed,
+        onLogBed: (bedNumber) => openLogForBeds({bedNumber}),
+        onClearBed: clearBed,
+      ),
+      HistoryScreen(records: records, onRemove: removeRecord),
+      const ProductsScreen(),
+    ];
+
+    return CupertinoPageScaffold(
+      backgroundColor: AppColor.background,
+      child: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: IndexedStack(index: currentTab, children: pages),
+            ),
+            DecoratedBox(
+              decoration: const BoxDecoration(
+                color: Color(0xF8FFFCF6),
+                border: Border(top: BorderSide(color: Color(0xFFE9DECD))),
               ),
-            1 => LogSprayScreen(initialBeds: selectedBeds, onSubmit: logSpray),
-            2 => BedsScreen(
-                bedState: stateForBed,
-                onLogBed: (bedNumber) => openLogForBeds({bedNumber}),
-                onClearBed: clearBed,
+              child: CupertinoTabBar(
+                currentIndex: currentTab,
+                onTap: setTab,
+                backgroundColor: const Color(0xF8FFFCF6),
+                activeColor: AppColor.green,
+                inactiveColor: AppColor.muted,
+                items: const [
+                  BottomNavigationBarItem(icon: Icon(CupertinoIcons.house_fill), label: 'Home'),
+                  BottomNavigationBarItem(icon: Icon(CupertinoIcons.plus_circle_fill), label: 'Log'),
+                  BottomNavigationBarItem(icon: Icon(CupertinoIcons.square_grid_2x2_fill), label: 'Beds'),
+                  BottomNavigationBarItem(icon: Icon(CupertinoIcons.time), label: 'History'),
+                  BottomNavigationBarItem(icon: Icon(CupertinoIcons.cube_box_fill), label: 'Products'),
+                ],
               ),
-            3 => HistoryScreen(records: records, onRemove: removeRecord),
-            _ => const ProductsScreen(),
-          },
-        );
-      },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -255,7 +306,13 @@ extension FirstOrNull<T> on Iterable<T> {
 }
 
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({required this.safeCount, required this.waitingCount, required this.records, required this.onOpenLog, super.key});
+  const DashboardScreen({
+    required this.safeCount,
+    required this.waitingCount,
+    required this.records,
+    required this.onOpenLog,
+    super.key,
+  });
 
   final int safeCount;
   final int waitingCount;
@@ -272,15 +329,34 @@ class DashboardScreen extends StatelessWidget {
         const SizedBox(height: 18),
         Row(
           children: [
-            Expanded(child: MetricCard(label: 'Safe now', value: '$safeCount', detail: 'beds', color: AppColor.green, icon: CupertinoIcons.check_mark_circled_solid)),
+            Expanded(
+              child: MetricCard(
+                label: 'Safe now',
+                value: '$safeCount',
+                detail: 'beds',
+                color: AppColor.green,
+                icon: CupertinoIcons.check_mark_circled_solid,
+              ),
+            ),
             const SizedBox(width: 12),
-            Expanded(child: MetricCard(label: 'Wait', value: '$waitingCount', detail: 'beds', color: AppColor.orange, icon: CupertinoIcons.exclamationmark_triangle_fill)),
+            Expanded(
+              child: MetricCard(
+                label: 'Wait',
+                value: '$waitingCount',
+                detail: 'beds',
+                color: AppColor.orange,
+                icon: CupertinoIcons.exclamationmark_triangle_fill,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 24),
         const SectionHeader(title: 'Recent sprays'),
         const SizedBox(height: 10),
-        if (records.isEmpty) const EmptyCard('No spray records yet.') else ...records.take(3).map((record) => SprayRecordCard(record: record)),
+        if (records.isEmpty)
+          const EmptyCard('No spray records yet.')
+        else
+          ...records.take(3).map((record) => SprayRecordCard(record: record)),
       ],
     );
   }
@@ -299,7 +375,11 @@ class HeroPanel extends StatelessWidget {
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
-        gradient: const LinearGradient(colors: [Color(0xFF2F8A4C), Color(0xFF76B96B)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2F8A4C), Color(0xFF76B96B)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         boxShadow: appShadow,
       ),
       child: Column(
@@ -326,7 +406,12 @@ class LogSprayScreen extends StatefulWidget {
   const LogSprayScreen({required this.initialBeds, required this.onSubmit, super.key});
 
   final Set<int> initialBeds;
-  final void Function({required Set<int> bedNumbers, required SprayProduct product, required String reason, required int withholdingDays}) onSubmit;
+  final void Function({
+    required Set<int> bedNumbers,
+    required SprayProduct product,
+    required String reason,
+    required int withholdingDays,
+  }) onSubmit;
 
   @override
   State<LogSprayScreen> createState() => _LogSprayScreenState();
@@ -348,7 +433,9 @@ class _LogSprayScreenState extends State<LogSprayScreen> {
   @override
   void didUpdateWidget(covariant LogSprayScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialBeds.join(',') != widget.initialBeds.join(',')) selectedBeds = {...widget.initialBeds};
+    if (oldWidget.initialBeds.join(',') != widget.initialBeds.join(',')) {
+      selectedBeds = {...widget.initialBeds};
+    }
   }
 
   @override
@@ -358,7 +445,12 @@ class _LogSprayScreenState extends State<LogSprayScreen> {
   }
 
   void submit() {
-    widget.onSubmit(bedNumbers: selectedBeds, product: selectedProduct, reason: reasonController.text, withholdingDays: withholdingDays);
+    widget.onSubmit(
+      bedNumbers: selectedBeds,
+      product: selectedProduct,
+      reason: reasonController.text,
+      withholdingDays: withholdingDays,
+    );
     reasonController.clear();
   }
 
@@ -381,12 +473,20 @@ class _LogSprayScreenState extends State<LogSprayScreen> {
                 runSpacing: 8,
                 children: gardenBeds.map((bed) {
                   final selected = selectedBeds.contains(bed.number);
-                  return BedChip(number: bed.number, selected: selected, onTap: () => setState(() => selected ? selectedBeds.remove(bed.number) : selectedBeds.add(bed.number)));
+                  return BedChip(
+                    number: bed.number,
+                    selected: selected,
+                    onTap: () => setState(() => selected ? selectedBeds.remove(bed.number) : selectedBeds.add(bed.number)),
+                  );
                 }).toList(),
               ),
               if (selectedBeds.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                SecondaryButton(title: 'Clear selected beds', icon: CupertinoIcons.xmark_circle, onPressed: () => setState(selectedBeds.clear)),
+                SecondaryButton(
+                  title: 'Clear selected beds',
+                  icon: CupertinoIcons.xmark_circle,
+                  onPressed: () => setState(selectedBeds.clear),
+                ),
               ],
             ],
           ),
@@ -400,7 +500,13 @@ class _LogSprayScreenState extends State<LogSprayScreen> {
               const SizedBox(height: 12),
               CupertinoSlidingSegmentedControl<String>(
                 groupValue: selectedProduct.name,
-                children: {for (final product in defaultProducts) product.name: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8), child: Text(product.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)))},
+                children: {
+                  for (final product in defaultProducts)
+                    product.name: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                      child: Text(product.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    ),
+                },
                 onValueChanged: (value) {
                   if (value == null) return;
                   setState(() {
@@ -414,7 +520,10 @@ class _LogSprayScreenState extends State<LogSprayScreen> {
                 children: [
                   const Expanded(child: Text('Withholding', style: TextStyle(fontWeight: FontWeight.w800))),
                   StepperButton(icon: CupertinoIcons.minus, onPressed: withholdingDays > 0 ? () => setState(() => withholdingDays--) : null),
-                  Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Text('$withholdingDays days', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text('$withholdingDays days', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                  ),
                   StepperButton(icon: CupertinoIcons.plus, onPressed: () => setState(() => withholdingDays++)),
                 ],
               ),
@@ -454,7 +563,13 @@ class BedsScreen extends StatelessWidget {
           icon: CupertinoIcons.square_grid_2x2_fill,
         ),
         const SizedBox(height: 16),
-        ...groupBeds().entries.map((entry) => BedGroupSection(groupName: entry.key, beds: entry.value, bedState: bedState, onLogBed: onLogBed, onClearBed: onClearBed)),
+        ...groupBeds().entries.map((entry) => BedGroupSection(
+              groupName: entry.key,
+              beds: entry.value,
+              bedState: bedState,
+              onLogBed: onLogBed,
+              onClearBed: onClearBed,
+            )),
       ],
     );
   }
@@ -486,7 +601,12 @@ class BedGroupSection extends StatelessWidget {
         children: [
           SectionHeader(title: groupName),
           const SizedBox(height: 10),
-          ...beds.map((bed) => BedStatusCard(bed: bed, state: bedState(bed.number), onLog: () => onLogBed(bed.number), onClear: () => onClearBed(bed.number))),
+          ...beds.map((bed) => BedStatusCard(
+                bed: bed,
+                state: bedState(bed.number),
+                onLog: () => onLogBed(bed.number),
+                onClear: () => onClearBed(bed.number),
+              )),
         ],
       ),
     );
@@ -549,7 +669,9 @@ class HistoryScreen extends StatelessWidget {
     return AppPage(
       title: 'History',
       subtitle: 'Remove mistakes or review recent sprays',
-      children: records.isEmpty ? [const EmptyCard('No spray records yet.')] : records.map((record) => SprayRecordCard(record: record, onRemove: () => onRemove(record.id))).toList(),
+      children: records.isEmpty
+          ? [const EmptyCard('No spray records yet.')]
+          : records.map((record) => SprayRecordCard(record: record, onRemove: () => onRemove(record.id))).toList(),
     );
   }
 }
@@ -580,20 +702,15 @@ class AppPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      backgroundColor: AppColor.background,
-      child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 34),
-          children: [
-            Text(title, style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: AppColor.text)),
-            const SizedBox(height: 4),
-            Text(subtitle, style: const TextStyle(fontSize: 16, color: AppColor.muted, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 24),
-            ...children,
-          ],
-        ),
-      ),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 34),
+      children: [
+        Text(title, style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: AppColor.text)),
+        const SizedBox(height: 4),
+        Text(subtitle, style: const TextStyle(fontSize: 16, color: AppColor.muted, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 24),
+        ...children,
+      ],
     );
   }
 }
@@ -621,7 +738,13 @@ class InfoPanel extends StatelessWidget {
         children: [
           Icon(icon, color: AppColor.green),
           const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w900)), const SizedBox(height: 4), Text(body, style: const TextStyle(color: AppColor.muted))])),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text(body, style: const TextStyle(color: AppColor.muted)),
+            ]),
+          ),
         ],
       ),
     );
@@ -677,7 +800,6 @@ class BedChip extends StatelessWidget {
           color: selected ? AppColor.green : CupertinoColors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: selected ? AppColor.green : const Color(0xFFE2D8C8), width: 2),
-          boxShadow: selected ? appShadow : null,
         ),
         child: Text('$number', style: TextStyle(color: selected ? CupertinoColors.white : AppColor.text, fontWeight: FontWeight.w900)),
       ),
@@ -718,7 +840,12 @@ class SprayRecordCard extends StatelessWidget {
       decoration: premiumDecoration,
       child: Row(
         children: [
-          Container(width: 42, height: 42, decoration: BoxDecoration(color: AppColor.greenSoft, borderRadius: BorderRadius.circular(15)), child: const Icon(CupertinoIcons.drop_fill, color: AppColor.green)),
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(color: AppColor.greenSoft, borderRadius: BorderRadius.circular(15)),
+            child: const Icon(CupertinoIcons.drop_fill, color: AppColor.green),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -757,9 +884,19 @@ class ProductCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: premiumDecoration,
       child: Row(children: [
-        Container(width: 42, height: 42, decoration: BoxDecoration(color: AppColor.greenSoft, borderRadius: BorderRadius.circular(15)), child: const Icon(CupertinoIcons.cube_box_fill, color: AppColor.green)),
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(color: AppColor.greenSoft, borderRadius: BorderRadius.circular(15)),
+          child: const Icon(CupertinoIcons.cube_box_fill, color: AppColor.green),
+        ),
         const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(product.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)), Text(product.type, style: const TextStyle(color: AppColor.muted))])),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(product.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+            Text(product.type, style: const TextStyle(color: AppColor.muted)),
+          ]),
+        ),
         Text('${product.withholdingDays} days', style: const TextStyle(fontWeight: FontWeight.w900)),
       ]),
     );
@@ -773,7 +910,11 @@ class StepperButton extends StatelessWidget {
   final VoidCallback? onPressed;
 
   @override
-  Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onPressed, child: Icon(icon, color: onPressed == null ? AppColor.muted : AppColor.green));
+  Widget build(BuildContext context) => CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: onPressed,
+        child: Icon(icon, color: onPressed == null ? AppColor.muted : AppColor.green),
+      );
 }
 
 class PrimaryButton extends StatelessWidget {
@@ -808,7 +949,11 @@ class SecondaryButton extends StatelessWidget {
       color: AppColor.cardAlt,
       borderRadius: BorderRadius.circular(16),
       onPressed: onPressed,
-      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 16, color: AppColor.green), const SizedBox(width: 6), Text(title, style: const TextStyle(color: AppColor.text, fontWeight: FontWeight.w800))]),
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(icon, size: 16, color: AppColor.green),
+        const SizedBox(width: 6),
+        Text(title, style: const TextStyle(color: AppColor.text, fontWeight: FontWeight.w800)),
+      ]),
     );
   }
 }
@@ -874,5 +1019,10 @@ class EmptyCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(16), decoration: premiumDecoration, child: Text(message, style: const TextStyle(color: AppColor.muted)));
 }
 
-const appShadow = [BoxShadow(color: Color(0x16000000), blurRadius: 24, offset: Offset(0, 12))];
-final premiumDecoration = BoxDecoration(color: AppColor.card, borderRadius: BorderRadius.circular(26), border: Border.all(color: const Color(0xFFE9DECD)), boxShadow: appShadow);
+const appShadow = [BoxShadow(color: Color(0x10000000), blurRadius: 16, offset: Offset(0, 8))];
+final premiumDecoration = BoxDecoration(
+  color: AppColor.card,
+  borderRadius: BorderRadius.circular(24),
+  border: Border.all(color: const Color(0xFFE9DECD)),
+  boxShadow: appShadow,
+);
