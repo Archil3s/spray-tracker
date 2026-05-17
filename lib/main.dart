@@ -41,6 +41,11 @@ class AppColor {
   static const path = Color(0xFFB8B4AA);
 }
 
+const shadow = [BoxShadow(color: Color(0x16000000), blurRadius: 18, offset: Offset(0, 8))];
+const subtleShadow = [BoxShadow(color: Color(0x0D000000), blurRadius: 12, offset: Offset(0, 4))];
+final cardDecoration = BoxDecoration(color: AppColor.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColor.line), boxShadow: subtleShadow);
+final inputDecoration = BoxDecoration(color: AppColor.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColor.line));
+
 class GardenBed {
   const GardenBed(this.number, this.bounds);
   final int number;
@@ -48,13 +53,7 @@ class GardenBed {
 }
 
 class SpraySuggestion {
-  const SpraySuggestion({
-    required this.name,
-    required this.category,
-    required this.target,
-    required this.whenToUse,
-  });
-
+  const SpraySuggestion({required this.name, required this.category, required this.target, required this.whenToUse});
   final String name;
   final String category;
   final String target;
@@ -82,13 +81,7 @@ class CropProfile {
 }
 
 class SprayProduct {
-  const SprayProduct({
-    required this.id,
-    required this.name,
-    required this.type,
-    required this.withholdingDays,
-  });
-
+  const SprayProduct({required this.id, required this.name, required this.type, required this.withholdingDays});
   final int id;
   final String name;
   final String type;
@@ -154,7 +147,7 @@ const cropProfiles = [
     maintenance: ['Stake and prune regularly', 'Remove diseased leaves quickly', 'Keep mulch off stems'],
     suggestions: [
       SpraySuggestion(name: 'Neem Oil', category: 'Pest', target: 'Aphids, mites, whitefly', whenToUse: 'Use only when active pest pressure is seen.'),
-      SpraySuggestion(name: 'Copper Spray', category: 'Fungal', target: 'Blight and leaf spot risk', whenToUse: 'Use preventatively during wet, humid periods if label allows.'),
+      SpraySuggestion(name: 'Copper Spray', category: 'Fungus', target: 'Blight and leaf spot risk', whenToUse: 'Use preventatively during wet, humid periods if label allows.'),
       SpraySuggestion(name: 'Seaweed Tonic', category: 'Maintenance', target: 'Plant stress support', whenToUse: 'Use after heat, transplant stress, or heavy fruiting.'),
     ],
   ),
@@ -167,7 +160,7 @@ const cropProfiles = [
     maintenance: ['Harvest outer leaves often', 'Remove damaged leaves', 'Improve airflow between rows'],
     suggestions: [
       SpraySuggestion(name: 'Neem Oil', category: 'Pest', target: 'Aphids and soft-bodied insects', whenToUse: 'Use carefully when pests are present; avoid spraying stressed leaves.'),
-      SpraySuggestion(name: 'Copper Spray', category: 'Fungal', target: 'Downy mildew and leaf spot pressure', whenToUse: 'Use only when disease pressure is high and label permits edible greens.'),
+      SpraySuggestion(name: 'Copper Spray', category: 'Fungus', target: 'Downy mildew and leaf spot pressure', whenToUse: 'Use only when disease pressure is high and label permits edible greens.'),
       SpraySuggestion(name: 'Seaweed Tonic', category: 'Maintenance', target: 'Growth support', whenToUse: 'Use lightly after picking or weather stress.'),
     ],
   ),
@@ -180,7 +173,7 @@ const cropProfiles = [
     maintenance: ['Water consistently', 'Remove badly rusted leaves', 'Rotate allium beds yearly'],
     suggestions: [
       SpraySuggestion(name: 'Neem Oil', category: 'Pest', target: 'Thrips suppression', whenToUse: 'Use when thrips are visible and plants are not drought stressed.'),
-      SpraySuggestion(name: 'Copper Spray', category: 'Fungal', target: 'Rust and downy mildew pressure', whenToUse: 'Use when humid weather and rust symptoms appear, if label allows.'),
+      SpraySuggestion(name: 'Copper Spray', category: 'Fungus', target: 'Rust and downy mildew pressure', whenToUse: 'Use when humid weather and rust symptoms appear, if label allows.'),
     ],
   ),
   CropProfile(
@@ -192,7 +185,7 @@ const cropProfiles = [
     maintenance: ['Remove old fruit', 'Prune crowded canes', 'Remove infected canes'],
     suggestions: [
       SpraySuggestion(name: 'Neem Oil', category: 'Pest', target: 'Aphids and mites', whenToUse: 'Use before flowering or after harvest if label allows.'),
-      SpraySuggestion(name: 'Copper Spray', category: 'Fungal', target: 'Cane disease pressure', whenToUse: 'Best considered in dormant or label-approved windows.'),
+      SpraySuggestion(name: 'Copper Spray', category: 'Fungus', target: 'Cane disease pressure', whenToUse: 'Best considered in dormant or label-approved windows.'),
       SpraySuggestion(name: 'Seaweed Tonic', category: 'Maintenance', target: 'Post-harvest recovery', whenToUse: 'Use after pruning or harvest stress.'),
     ],
   ),
@@ -491,7 +484,7 @@ class VisualMapScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final crops = bedCrops[selectedBed] ?? const <CropProfile>[];
     final status = bedStatus(selectedBed);
-    return AppPage(title: 'Garden Map', subtitle: 'Assign multiple vegetables and view spray suggestions.', children: [
+    return AppPage(title: 'Garden Map', subtitle: 'Assign vegetables and choose a pressure type for spray guidance.', children: [
       if (actionMessage != null) ...[ActionBanner(message: actionMessage!), const SizedBox(height: 12)],
       GardenVisualMap(selectedBed: selectedBed, bedCrops: bedCrops, bedStatus: bedStatus, onSelectBed: onSelectBed),
       const SizedBox(height: 14),
@@ -545,39 +538,28 @@ class MapBedTile extends StatelessWidget {
     final waiting = status.label == 'Wait';
     return Positioned.fromRect(rect: rect, child: CupertinoButton(padding: EdgeInsets.zero, onPressed: onTap, child: Stack(clipBehavior: Clip.none, children: [
       AnimatedContainer(duration: const Duration(milliseconds: 140), alignment: Alignment.center, decoration: BoxDecoration(color: waiting ? AppColor.warningSoft : crops.isEmpty ? const Color(0xFFFCFBF7) : AppColor.primarySoft, borderRadius: BorderRadius.circular(7), border: Border.all(color: selected ? CupertinoColors.activeBlue : waiting ? AppColor.warning : AppColor.earth, width: selected ? 3 : 1.7)), child: Text('${bed.number}', style: const TextStyle(color: AppColor.ink, fontSize: 13, fontWeight: FontWeight.w900))),
-      if (crops.isNotEmpty) Positioned(top: -10, right: -10, child: CropIconStack(crops: crops)),
+      if (crops.isNotEmpty) Positioned(top: -10, right: -10, child: CropIconRibbon(crops: crops)),
     ])));
   }
 }
 
-class CropIconStack extends StatelessWidget {
-  const CropIconStack({required this.crops, super.key});
+class CropIconRibbon extends StatelessWidget {
+  const CropIconRibbon({required this.crops, super.key});
   final List<CropProfile> crops;
 
   @override
   Widget build(BuildContext context) {
-    final visible = crops.take(3).toList();
-    return SizedBox(width: 30.0 + (visible.length - 1) * 16, height: 32, child: Stack(children: [
-      for (int i = 0; i < visible.length; i++) Positioned(left: i * 16, child: HoverCropIcon(crop: visible[i])),
-      if (crops.length > 3) Positioned(right: 0, bottom: 0, child: CountBadge(count: crops.length)),
-    ]));
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 150),
+      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
+      decoration: BoxDecoration(color: AppColor.surface, borderRadius: BorderRadius.circular(999), border: Border.all(color: AppColor.line), boxShadow: subtleShadow),
+      child: Wrap(
+        spacing: 2,
+        runSpacing: 2,
+        children: crops.map((crop) => SizedBox(width: 22, height: 22, child: SvgPicture.asset(crop.iconPath))).toList(),
+      ),
+    );
   }
-}
-
-class HoverCropIcon extends StatelessWidget {
-  const HoverCropIcon({required this.crop, super.key});
-  final CropProfile crop;
-
-  @override
-  Widget build(BuildContext context) => Container(width: 30, height: 30, padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: AppColor.surface, shape: BoxShape.circle, border: Border.all(color: AppColor.line), boxShadow: subtleShadow), child: SvgPicture.asset(crop.iconPath));
-}
-
-class CountBadge extends StatelessWidget {
-  const CountBadge({required this.count, super.key});
-  final int count;
-
-  @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2), decoration: BoxDecoration(color: AppColor.primary, borderRadius: BorderRadius.circular(99)), child: Text('$count', style: const TextStyle(color: CupertinoColors.white, fontSize: 10, fontWeight: FontWeight.w900)));
 }
 
 class SelectedBedPanel extends StatelessWidget {
@@ -602,7 +584,7 @@ class SelectedBedPanel extends StatelessWidget {
     const SizedBox(height: 12),
     if (crops.isEmpty) const Text('Add one or more vegetables to this bed to unlock targeted spray suggestions.', style: TextStyle(color: AppColor.muted, fontSize: 13)) else CropChipWrap(crops: crops, onRemoveCrop: onRemoveCrop),
     const SizedBox(height: 14),
-    Row(children: [Expanded(child: PrimaryButton(title: 'Add vegetable', onPressed: onAddCrop)), const SizedBox(width: 10), Expanded(child: SecondaryButton(title: 'Suggested sprays', icon: CupertinoIcons.list_bullet, onPressed: onSuggestedSprays))]),
+    Row(children: [Expanded(child: PrimaryButton(title: 'Add vegetable', onPressed: onAddCrop)), const SizedBox(width: 10), Expanded(child: SecondaryButton(title: 'Spray guide', icon: CupertinoIcons.list_bullet, onPressed: onSuggestedSprays))]),
     const SizedBox(height: 10),
     Row(children: [Expanded(child: SecondaryButton(title: 'Log spray', icon: CupertinoIcons.drop_fill, onPressed: onLog)), const SizedBox(width: 10), Expanded(child: DestructiveButton(title: 'Clear spray', onPressed: onClearSprays))]),
     const SizedBox(height: 10),
@@ -622,7 +604,7 @@ class CropChipWrap extends StatelessWidget {
 void showCropPicker(BuildContext context, int bedNumber, List<CropProfile> assigned, void Function(int, CropProfile) onSave) {
   showCupertinoModalPopup<void>(context: context, builder: (_) => CupertinoActionSheet(
     title: Text('Add vegetable to Bed $bedNumber'),
-    message: const Text('Choose one or more crop profiles. The bed can contain mixed vegetables.'),
+    message: const Text('Choose one or more vegetables. Already-added items are greyed out.'),
     actions: cropProfiles.map((crop) {
       final alreadyAdded = assigned.any((item) => item.name == crop.name);
       return CupertinoActionSheetAction(onPressed: () {
@@ -640,40 +622,135 @@ void showCropPicker(BuildContext context, int bedNumber, List<CropProfile> assig
 }
 
 void showSuggestedSprayMenu(BuildContext context, int bedNumber, List<CropProfile> crops) {
-  showCupertinoModalPopup<void>(context: context, builder: (_) => CupertinoPopupSurface(child: SafeArea(top: false, child: Container(height: MediaQuery.of(context).size.height * .78, color: AppColor.background, child: SuggestedSprayMenu(bedNumber: bedNumber, crops: crops)))));
+  showCupertinoModalPopup<void>(context: context, builder: (_) => CupertinoPopupSurface(child: SafeArea(top: false, child: Container(height: MediaQuery.of(context).size.height * .78, color: AppColor.background, child: GuidedSpraySheet(bedNumber: bedNumber, crops: crops)))));
 }
 
-class SuggestedSprayMenu extends StatelessWidget {
-  const SuggestedSprayMenu({required this.bedNumber, required this.crops, super.key});
+class GuidedSpraySheet extends StatefulWidget {
+  const GuidedSpraySheet({required this.bedNumber, required this.crops, super.key});
   final int bedNumber;
   final List<CropProfile> crops;
 
-  List<SpraySuggestion> get suggestions {
+  @override
+  State<GuidedSpraySheet> createState() => _GuidedSpraySheetState();
+}
+
+class _GuidedSpraySheetState extends State<GuidedSpraySheet> {
+  String selected = 'Pest';
+
+  List<SpraySuggestion> get filteredSuggestions {
     final byKey = <String, SpraySuggestion>{};
-    for (final crop in crops) {
+    for (final crop in widget.crops) {
       for (final suggestion in crop.suggestions) {
-        byKey['${suggestion.name}-${suggestion.category}-${suggestion.target}'] = suggestion;
+        if (suggestion.category == selected) {
+          byKey['${suggestion.name}-${suggestion.target}'] = suggestion;
+        }
       }
     }
     return byKey.values.toList();
   }
 
   @override
-  Widget build(BuildContext context) => ListView(padding: const EdgeInsets.fromLTRB(20, 18, 20, 28), children: [
-    Row(children: [Expanded(child: Text('Suggested sprays · Bed $bedNumber', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900))), CupertinoButton(padding: EdgeInsets.zero, onPressed: () => Navigator.pop(context), child: const Icon(CupertinoIcons.xmark_circle_fill, color: AppColor.muted))]),
-    const SizedBox(height: 6),
-    Text(crops.map((crop) => crop.name).join(' + '), style: const TextStyle(color: AppColor.muted, fontWeight: FontWeight.w700)),
-    const SizedBox(height: 18),
-    const InfoCard(title: 'Use as guidance only', subtitle: 'Apply sprays only when needed and always follow product label, crop suitability, weather limits, and withholding period.', icon: CupertinoIcons.exclamationmark_triangle),
-    const SizedBox(height: 18),
-    const SectionHeader(title: 'Suggested spray options'),
+  Widget build(BuildContext context) {
+    return ListView(padding: const EdgeInsets.fromLTRB(20, 18, 20, 28), children: [
+      Row(children: [Expanded(child: Text('Spray guide · Bed ${widget.bedNumber}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900))), CupertinoButton(padding: EdgeInsets.zero, onPressed: () => Navigator.pop(context), child: const Icon(CupertinoIcons.xmark_circle_fill, color: AppColor.muted))]),
+      const SizedBox(height: 8),
+      CropChipWrap(crops: widget.crops, onRemoveCrop: (_) {}),
+      const SizedBox(height: 16),
+      const InfoCard(title: 'Pick what you are seeing', subtitle: 'This narrows the guide so you are not looking through every possible spray option at once.', icon: CupertinoIcons.search),
+      const SizedBox(height: 14),
+      CupertinoSlidingSegmentedControl<String>(
+        groupValue: selected,
+        children: const {
+          'Pest': Padding(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8), child: Text('Pest')),
+          'Fungus': Padding(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8), child: Text('Fungus')),
+          'Preventative': Padding(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8), child: Text('Prevent')),
+          'Maintenance': Padding(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8), child: Text('Maintain')),
+        },
+        onValueChanged: (value) {
+          if (value != null) setState(() => selected = value);
+        },
+      ),
+      const SizedBox(height: 18),
+      if (selected == 'Preventative') PreventativeGuide(crops: widget.crops) else if (selected == 'Maintenance') MaintenanceGuide(crops: widget.crops, suggestions: filteredSuggestions) else PressureGuide(title: selected == 'Pest' ? 'Likely pest pressure' : 'Likely fungal pressure', crops: widget.crops, suggestions: filteredSuggestions, pest: selected == 'Pest'),
+      const SizedBox(height: 12),
+      const Text('Use this as guidance only. Always check the spray label, crop suitability, weather limits, and withholding period before applying anything.', style: TextStyle(color: AppColor.muted, fontSize: 12, fontWeight: FontWeight.w600)),
+    ]);
+  }
+}
+
+class PressureGuide extends StatelessWidget {
+  const PressureGuide({required this.title, required this.crops, required this.suggestions, required this.pest, super.key});
+  final String title;
+  final List<CropProfile> crops;
+  final List<SpraySuggestion> suggestions;
+  final bool pest;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    SectionHeader(title: title),
     const SizedBox(height: 10),
-    ...suggestions.map((suggestion) => SpraySuggestionCard(suggestion: suggestion)),
-    const SizedBox(height: 18),
-    const SectionHeader(title: 'Combined pressure notes'),
+    ...crops.map((crop) => CompactPressureCard(crop: crop, pest: pest)),
+    const SizedBox(height: 12),
+    const SectionHeader(title: 'Suggested options'),
     const SizedBox(height: 10),
-    ...crops.map((crop) => CropPressureCard(crop: crop)),
+    if (suggestions.isEmpty) const EmptyCard('No spray suggestions for this category.') else ...suggestions.map((suggestion) => SpraySuggestionCard(suggestion: suggestion)),
   ]);
+}
+
+class PreventativeGuide extends StatelessWidget {
+  const PreventativeGuide({required this.crops, super.key});
+  final List<CropProfile> crops;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    const SectionHeader(title: 'Preventative actions'),
+    const SizedBox(height: 10),
+    ...crops.map((crop) => GuidanceListCard(crop: crop, items: crop.preventative)),
+  ]);
+}
+
+class MaintenanceGuide extends StatelessWidget {
+  const MaintenanceGuide({required this.crops, required this.suggestions, super.key});
+  final List<CropProfile> crops;
+  final List<SpraySuggestion> suggestions;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    const SectionHeader(title: 'Maintenance tasks'),
+    const SizedBox(height: 10),
+    ...crops.map((crop) => GuidanceListCard(crop: crop, items: crop.maintenance)),
+    if (suggestions.isNotEmpty) ...[const SizedBox(height: 12), const SectionHeader(title: 'Support options'), const SizedBox(height: 10), ...suggestions.map((suggestion) => SpraySuggestionCard(suggestion: suggestion))],
+  ]);
+}
+
+class CompactPressureCard extends StatelessWidget {
+  const CompactPressureCard({required this.crop, required this.pest, super.key});
+  final CropProfile crop;
+  final bool pest;
+
+  @override
+  Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14), decoration: cardDecoration, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    SizedBox(width: 28, height: 28, child: SvgPicture.asset(crop.iconPath)),
+    const SizedBox(width: 10),
+    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(crop.name, style: const TextStyle(fontWeight: FontWeight.w900)),
+      const SizedBox(height: 4),
+      Text(pest ? crop.pestPressure : crop.fungusPressure, style: const TextStyle(color: AppColor.muted, fontSize: 13)),
+    ])),
+  ]));
+}
+
+class GuidanceListCard extends StatelessWidget {
+  const GuidanceListCard({required this.crop, required this.items, super.key});
+  final CropProfile crop;
+  final List<String> items;
+
+  @override
+  Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14), decoration: cardDecoration, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Row(children: [SizedBox(width: 28, height: 28, child: SvgPicture.asset(crop.iconPath)), const SizedBox(width: 10), Expanded(child: Text(crop.name, style: const TextStyle(fontWeight: FontWeight.w900)))]),
+    const SizedBox(height: 8),
+    ...items.map((item) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Text('• $item', style: const TextStyle(color: AppColor.muted, fontSize: 13)))),
+  ]));
 }
 
 class SpraySuggestionCard extends StatelessWidget {
@@ -687,22 +764,6 @@ class SpraySuggestionCard extends StatelessWidget {
     Text('Target: ${suggestion.target}', style: const TextStyle(color: AppColor.ink, fontWeight: FontWeight.w700)),
     const SizedBox(height: 4),
     Text(suggestion.whenToUse, style: const TextStyle(color: AppColor.muted, fontSize: 13)),
-  ]));
-}
-
-class CropPressureCard extends StatelessWidget {
-  const CropPressureCard({required this.crop, super.key});
-  final CropProfile crop;
-
-  @override
-  Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14), decoration: cardDecoration, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Row(children: [SizedBox(width: 28, height: 28, child: SvgPicture.asset(crop.iconPath)), const SizedBox(width: 10), Expanded(child: Text(crop.name, style: const TextStyle(fontWeight: FontWeight.w900)))]),
-    const SizedBox(height: 8),
-    Text('Pest: ${crop.pestPressure}', style: const TextStyle(color: AppColor.muted, fontSize: 13)),
-    const SizedBox(height: 4),
-    Text('Fungus: ${crop.fungusPressure}', style: const TextStyle(color: AppColor.muted, fontSize: 13)),
-    const SizedBox(height: 8),
-    ...crop.preventative.take(2).map((item) => Text('• $item', style: const TextStyle(color: AppColor.muted, fontSize: 13))),
   ]));
 }
 
@@ -978,6 +1039,14 @@ class BedChip extends StatelessWidget {
   Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onTap, child: Stack(clipBehavior: Clip.none, children: [Container(width: 46, height: 40, alignment: Alignment.center, decoration: BoxDecoration(color: selected ? AppColor.primary : AppColor.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: selected ? AppColor.primary : AppColor.line)), child: iconPath == null ? Text('$number', style: TextStyle(color: selected ? CupertinoColors.white : AppColor.ink, fontWeight: FontWeight.w900)) : Padding(padding: const EdgeInsets.all(8), child: SvgPicture.asset(iconPath!))), if (count > 1) Positioned(right: -5, top: -5, child: CountBadge(count: count))]));
 }
 
+class CountBadge extends StatelessWidget {
+  const CountBadge({required this.count, super.key});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2), decoration: BoxDecoration(color: AppColor.primary, borderRadius: BorderRadius.circular(99)), child: Text('$count', style: const TextStyle(color: CupertinoColors.white, fontSize: 10, fontWeight: FontWeight.w900)));
+}
+
 class StatusPill extends StatelessWidget {
   const StatusPill({required this.status, super.key});
   final String status;
@@ -1056,8 +1125,3 @@ class ProductLibraryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(16), decoration: cardDecoration, child: Row(children: [Container(width: 46, height: 46, decoration: BoxDecoration(color: AppColor.primarySoft, borderRadius: BorderRadius.circular(15)), child: const Icon(CupertinoIcons.cube_box, color: AppColor.primary)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(product.name, style: const TextStyle(fontWeight: FontWeight.w900)), Text(product.type, style: const TextStyle(color: AppColor.muted)), Text('Withholding: ${product.withholdingDays} days', style: const TextStyle(color: AppColor.ink, fontSize: 12))])), CupertinoButton(padding: EdgeInsets.zero, onPressed: onRemove, child: const Icon(CupertinoIcons.trash, color: AppColor.danger, size: 20))]));
 }
-
-const shadow = [BoxShadow(color: Color(0x16000000), blurRadius: 18, offset: Offset(0, 8))];
-const subtleShadow = [BoxShadow(color: Color(0x0D000000), blurRadius: 12, offset: Offset(0, 4))];
-final cardDecoration = BoxDecoration(color: AppColor.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColor.line), boxShadow: subtleShadow);
-final inputDecoration = BoxDecoration(color: AppColor.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColor.line));
