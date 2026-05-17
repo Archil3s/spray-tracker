@@ -11,8 +11,8 @@ class AppColor {
   static const orange = Color(0xFFE48A2A);
   static const orangeSoft = Color(0xFFFFEEDB);
   static const blue = Color(0xFF2578D5);
-  static const brown = Color(0xFF8B5A2B);
-  static const path = Color(0xFFC9C4BA);
+  static const red = Color(0xFFC84D42);
+  static const redSoft = Color(0xFFFFE8E5);
   static const text = Color(0xFF1F241F);
   static const muted = Color(0xFF74786F);
 }
@@ -38,12 +38,12 @@ class SprayTrackerApp extends StatelessWidget {
   }
 }
 
-class BedZone {
-  const BedZone(this.number, this.bounds, this.label);
+class GardenBed {
+  const GardenBed(this.number, this.name, this.group);
 
   final int number;
-  final Rect bounds;
-  final String label;
+  final String name;
+  final String group;
 }
 
 class SprayProduct {
@@ -56,6 +56,7 @@ class SprayProduct {
 
 class SprayRecord {
   const SprayRecord({
+    required this.id,
     required this.bedNumbers,
     required this.product,
     required this.reason,
@@ -63,6 +64,7 @@ class SprayRecord {
     required this.withholdingDays,
   });
 
+  final int id;
   final List<int> bedNumbers;
   final String product;
   final String reason;
@@ -73,44 +75,40 @@ class SprayRecord {
 }
 
 class BedDisplayState {
-  const BedDisplayState({required this.status, required this.lastSpray});
+  const BedDisplayState({required this.status, required this.lastSpray, required this.daysRemaining});
 
   final String status;
   final String lastSpray;
+  final int daysRemaining;
 }
 
-const bedZones = [
-  BedZone(1, Rect.fromLTWH(.06, .08, .20, .12), 'Upper-left section'),
-  BedZone(2, Rect.fromLTWH(.36, .08, .15, .31), 'Right-hand section'),
-  BedZone(3, Rect.fromLTWH(.55, .08, .10, .085), 'Top small bed'),
-  BedZone(4, Rect.fromLTWH(.70, .08, .25, .07), 'Strawberries'),
-  BedZone(5, Rect.fromLTWH(.70, .18, .25, .07), 'Raspberries'),
-  BedZone(6, Rect.fromLTWH(.70, .28, .25, .07), 'Bed 6'),
-  BedZone(7, Rect.fromLTWH(.70, .38, .25, .07), 'Bed 7'),
-  BedZone(8, Rect.fromLTWH(.70, .48, .25, .07), 'Berry bed'),
-  BedZone(9, Rect.fromLTWH(.70, .58, .25, .07), 'Bed 9'),
-  BedZone(10, Rect.fromLTWH(.70, .68, .25, .07), 'Bed 10'),
-  BedZone(11, Rect.fromLTWH(.70, .78, .25, .08), 'Bed 11'),
-  BedZone(12, Rect.fromLTWH(.04, .42, .46, .07), 'Bed 12'),
-  BedZone(13, Rect.fromLTWH(.04, .53, .46, .07), 'Asparagus'),
-  BedZone(14, Rect.fromLTWH(.04, .64, .46, .07), 'Bed 14'),
-  BedZone(15, Rect.fromLTWH(.04, .75, .46, .07), 'Bed 15'),
-  BedZone(16, Rect.fromLTWH(.04, .92, .91, .045), 'Long bottom bed'),
-  BedZone(17, Rect.fromLTWH(.04, .01, .91, .04), 'Top cane bed'),
+const gardenBeds = [
+  GardenBed(1, 'Upper-left section', 'Compound area'),
+  GardenBed(2, 'Right-hand section', 'Compound area'),
+  GardenBed(3, 'Top small bed', 'Top beds'),
+  GardenBed(4, 'Strawberries', 'Right side'),
+  GardenBed(5, 'Raspberries', 'Right side'),
+  GardenBed(6, 'Bed 6', 'Right side'),
+  GardenBed(7, 'Bed 7', 'Right side'),
+  GardenBed(8, 'Berry bed', 'Right side'),
+  GardenBed(9, 'Bed 9', 'Right side'),
+  GardenBed(10, 'Bed 10', 'Right side'),
+  GardenBed(11, 'Lower-right bed', 'Right side'),
+  GardenBed(12, 'Bed 12', 'Left side'),
+  GardenBed(13, 'Asparagus', 'Left side'),
+  GardenBed(14, 'Bed 14', 'Left side'),
+  GardenBed(15, 'Bed 15', 'Left side'),
+  GardenBed(16, 'Long bottom bed', 'Long beds'),
+  GardenBed(17, 'Top cane bed', 'Long beds'),
 ];
 
-const products = [
+const defaultProducts = [
   SprayProduct('Neem oil', 'Pest control', 3),
   SprayProduct('Copper spray', 'Fungicide', 7),
   SprayProduct('Seaweed tonic', 'Plant health', 0),
 ];
 
-const compoundOuter = Rect.fromLTWH(.04, .07, .47, .33);
-const compoundPath = Rect.fromLTWH(.275, .08, .045, .31);
-const compoundLowerLeft = Rect.fromLTWH(.06, .24, .20, .15);
-const mainPath = Rect.fromLTWH(.55, .17, .045, .72);
-
-BedZone bedByNumber(int number) => bedZones.firstWhere((bed) => bed.number == number);
+GardenBed bedByNumber(int number) => gardenBeds.firstWhere((bed) => bed.number == number);
 String dateLabel(DateTime date) => '${date.day}/${date.month}/${date.year}';
 
 class SprayTrackerHome extends StatefulWidget {
@@ -122,9 +120,9 @@ class SprayTrackerHome extends StatefulWidget {
 
 class _SprayTrackerHomeState extends State<SprayTrackerHome> {
   late final CupertinoTabController tabController;
-  int selectedBedNumber = 4;
+  int nextRecordId = 4;
   Set<int> selectedBeds = {4};
-  late List<SprayRecord> records;
+  List<SprayRecord> records = [];
 
   @override
   void initState() {
@@ -132,9 +130,9 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
     tabController = CupertinoTabController();
     final now = DateTime.now();
     records = [
-      SprayRecord(bedNumbers: const [4, 5], product: 'Neem oil', reason: 'Aphids', sprayedAt: now.subtract(const Duration(days: 1)), withholdingDays: 3),
-      SprayRecord(bedNumbers: const [8], product: 'Copper spray', reason: 'Blight prevention', sprayedAt: now.subtract(const Duration(days: 2)), withholdingDays: 7),
-      SprayRecord(bedNumbers: const [17], product: 'Berry spray', reason: 'Cane check', sprayedAt: now.subtract(const Duration(days: 1)), withholdingDays: 4),
+      SprayRecord(id: 1, bedNumbers: const [4, 5], product: 'Neem oil', reason: 'Aphids', sprayedAt: now.subtract(const Duration(days: 1)), withholdingDays: 3),
+      SprayRecord(id: 2, bedNumbers: const [8], product: 'Copper spray', reason: 'Blight prevention', sprayedAt: now.subtract(const Duration(days: 2)), withholdingDays: 7),
+      SprayRecord(id: 3, bedNumbers: const [17], product: 'Berry spray', reason: 'Cane check', sprayedAt: now.subtract(const Duration(days: 1)), withholdingDays: 4),
     ];
   }
 
@@ -146,29 +144,24 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
 
   BedDisplayState stateForBed(int bedNumber) {
     final latest = records.where((record) => record.bedNumbers.contains(bedNumber)).firstOrNull;
-    if (latest == null) return const BedDisplayState(status: 'Safe', lastSpray: 'No recent spray');
-    final waiting = latest.safeDate.isAfter(DateTime.now());
+    if (latest == null) return const BedDisplayState(status: 'Safe', lastSpray: 'No recent spray', daysRemaining: 0);
+
+    final now = DateTime.now();
+    final waiting = latest.safeDate.isAfter(now);
+    final daysRemaining = waiting ? latest.safeDate.difference(now).inDays + 1 : 0;
     return BedDisplayState(
       status: waiting ? 'Wait' : 'Safe',
       lastSpray: '${latest.product} · safe ${dateLabel(latest.safeDate)}',
+      daysRemaining: daysRemaining,
     );
   }
 
-  Map<int, BedDisplayState> get bedStates => {for (final bed in bedZones) bed.number: stateForBed(bed.number)};
-  int get waitingCount => bedZones.where((bed) => stateForBed(bed.number).status == 'Wait').length;
-  int get safeCount => bedZones.length - waitingCount;
+  int get waitingCount => gardenBeds.where((bed) => stateForBed(bed.number).status == 'Wait').length;
+  int get safeCount => gardenBeds.length - waitingCount;
 
-  void selectBed(int bedNumber) {
+  void openLogForBeds(Set<int> beds) {
     setState(() {
-      selectedBedNumber = bedNumber;
-      selectedBeds = {bedNumber};
-    });
-  }
-
-  void openLogForBed(int bedNumber) {
-    setState(() {
-      selectedBedNumber = bedNumber;
-      selectedBeds = {bedNumber};
+      selectedBeds = beds.isEmpty ? {4} : {...beds};
       tabController.index = 1;
     });
   }
@@ -179,6 +172,7 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
       records.insert(
         0,
         SprayRecord(
+          id: nextRecordId++,
           bedNumbers: bedNumbers.toList()..sort(),
           product: product.name,
           reason: reason.trim().isEmpty ? 'General spray' : reason.trim(),
@@ -186,9 +180,33 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
           withholdingDays: withholdingDays,
         ),
       );
-      selectedBedNumber = bedNumbers.first;
       selectedBeds = {...bedNumbers};
       tabController.index = 0;
+    });
+  }
+
+  void removeRecord(int recordId) {
+    setState(() => records.removeWhere((record) => record.id == recordId));
+  }
+
+  void clearBed(int bedNumber) {
+    setState(() {
+      records = records
+          .map((record) {
+            if (!record.bedNumbers.contains(bedNumber)) return record;
+            final remainingBeds = record.bedNumbers.where((number) => number != bedNumber).toList();
+            if (remainingBeds.isEmpty) return null;
+            return SprayRecord(
+              id: record.id,
+              bedNumbers: remainingBeds,
+              product: record.product,
+              reason: record.reason,
+              sprayedAt: record.sprayedAt,
+              withholdingDays: record.withholdingDays,
+            );
+          })
+          .whereType<SprayRecord>()
+          .toList();
     });
   }
 
@@ -203,7 +221,7 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
         items: const [
           BottomNavigationBarItem(icon: Icon(CupertinoIcons.house_fill), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(CupertinoIcons.plus_circle_fill), label: 'Log'),
-          BottomNavigationBarItem(icon: Icon(CupertinoIcons.map_fill), label: 'Map'),
+          BottomNavigationBarItem(icon: Icon(CupertinoIcons.square_grid_2x2_fill), label: 'Beds'),
           BottomNavigationBarItem(icon: Icon(CupertinoIcons.time), label: 'History'),
           BottomNavigationBarItem(icon: Icon(CupertinoIcons.cube_box_fill), label: 'Products'),
         ],
@@ -211,10 +229,19 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
       tabBuilder: (context, index) {
         return CupertinoTabView(
           builder: (_) => switch (index) {
-            0 => DashboardScreen(safeCount: safeCount, waitingCount: waitingCount, records: records, onOpenLog: () => tabController.index = 1),
+            0 => DashboardScreen(
+                safeCount: safeCount,
+                waitingCount: waitingCount,
+                records: records,
+                onOpenLog: () => openLogForBeds(selectedBeds),
+              ),
             1 => LogSprayScreen(initialBeds: selectedBeds, onSubmit: logSpray),
-            2 => GardenMapScreen(selectedBed: selectedBedNumber, bedStates: bedStates, onSelectBed: selectBed, onLogBed: openLogForBed),
-            3 => HistoryScreen(records: records),
+            2 => BedsScreen(
+                bedState: stateForBed,
+                onLogBed: (bedNumber) => openLogForBeds({bedNumber}),
+                onClearBed: clearBed,
+              ),
+            3 => HistoryScreen(records: records, onRemove: removeRecord),
             _ => const ProductsScreen(),
           },
         );
@@ -239,7 +266,7 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppPage(
       title: 'Spray Tracker',
-      subtitle: 'Today in your veg garden',
+      subtitle: 'Simple spray safety for your veg garden',
       children: [
         HeroPanel(safeCount: safeCount, waitingCount: waitingCount, onOpenLog: onOpenLog),
         const SizedBox(height: 18),
@@ -251,7 +278,7 @@ class DashboardScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 24),
-        SectionHeader(title: 'Recent sprays', action: 'View all'),
+        const SectionHeader(title: 'Recent sprays'),
         const SizedBox(height: 10),
         if (records.isEmpty) const EmptyCard('No spray records yet.') else ...records.take(3).map((record) => SprayRecordCard(record: record)),
       ],
@@ -272,11 +299,7 @@ class HeroPanel extends StatelessWidget {
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF2F8A4C), Color(0xFF76B96B)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: const LinearGradient(colors: [Color(0xFF2F8A4C), Color(0xFF76B96B)], begin: Alignment.topLeft, end: Alignment.bottomRight),
         boxShadow: appShadow,
       ),
       child: Column(
@@ -311,7 +334,7 @@ class LogSprayScreen extends StatefulWidget {
 
 class _LogSprayScreenState extends State<LogSprayScreen> {
   late Set<int> selectedBeds;
-  SprayProduct selectedProduct = products.first;
+  SprayProduct selectedProduct = defaultProducts.first;
   late int withholdingDays;
   final reasonController = TextEditingController();
 
@@ -343,22 +366,28 @@ class _LogSprayScreenState extends State<LogSprayScreen> {
   Widget build(BuildContext context) {
     return AppPage(
       title: 'Log Spray',
-      subtitle: 'Record product use quickly',
+      subtitle: 'Pick beds, product, and withholding period',
       children: [
         PremiumCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SectionLabel('Beds sprayed'),
+              const SizedBox(height: 6),
+              Text('${selectedBeds.length} selected', style: const TextStyle(color: AppColor.muted, fontWeight: FontWeight.w600)),
               const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: bedZones.map((bed) {
+                children: gardenBeds.map((bed) {
                   final selected = selectedBeds.contains(bed.number);
                   return BedChip(number: bed.number, selected: selected, onTap: () => setState(() => selected ? selectedBeds.remove(bed.number) : selectedBeds.add(bed.number)));
                 }).toList(),
               ),
+              if (selectedBeds.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                SecondaryButton(title: 'Clear selected beds', icon: CupertinoIcons.xmark_circle, onPressed: () => setState(selectedBeds.clear)),
+              ],
             ],
           ),
         ),
@@ -371,11 +400,11 @@ class _LogSprayScreenState extends State<LogSprayScreen> {
               const SizedBox(height: 12),
               CupertinoSlidingSegmentedControl<String>(
                 groupValue: selectedProduct.name,
-                children: {for (final product in products) product.name: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8), child: Text(product.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)))},
+                children: {for (final product in defaultProducts) product.name: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8), child: Text(product.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)))},
                 onValueChanged: (value) {
                   if (value == null) return;
                   setState(() {
-                    selectedProduct = products.firstWhere((product) => product.name == value);
+                    selectedProduct = defaultProducts.firstWhere((product) => product.name == value);
                     withholdingDays = selectedProduct.withholdingDays;
                   });
                 },
@@ -383,7 +412,7 @@ class _LogSprayScreenState extends State<LogSprayScreen> {
               const SizedBox(height: 18),
               Row(
                 children: [
-                  const Expanded(child: Text('Withholding period', style: TextStyle(fontWeight: FontWeight.w800))),
+                  const Expanded(child: Text('Withholding', style: TextStyle(fontWeight: FontWeight.w800))),
                   StepperButton(icon: CupertinoIcons.minus, onPressed: withholdingDays > 0 ? () => setState(() => withholdingDays--) : null),
                   Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Text('$withholdingDays days', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
                   StepperButton(icon: CupertinoIcons.plus, onPressed: () => setState(() => withholdingDays++)),
@@ -406,152 +435,121 @@ class _LogSprayScreenState extends State<LogSprayScreen> {
   }
 }
 
-class GardenMapScreen extends StatelessWidget {
-  const GardenMapScreen({required this.selectedBed, required this.bedStates, required this.onSelectBed, required this.onLogBed, super.key});
+class BedsScreen extends StatelessWidget {
+  const BedsScreen({required this.bedState, required this.onLogBed, required this.onClearBed, super.key});
 
-  final int selectedBed;
-  final Map<int, BedDisplayState> bedStates;
-  final ValueChanged<int> onSelectBed;
+  final BedDisplayState Function(int bedNumber) bedState;
   final ValueChanged<int> onLogBed;
+  final ValueChanged<int> onClearBed;
 
   @override
   Widget build(BuildContext context) {
-    final bed = bedByNumber(selectedBed);
-    final state = bedStates[selectedBed]!;
     return AppPage(
-      title: 'Garden Map',
-      subtitle: 'Tap a bed to inspect or spray',
+      title: 'Beds',
+      subtitle: 'Simple cards instead of an interactive map',
       children: [
-        MapShell(child: InteractiveGardenMap(selectedBed: selectedBed, bedStates: bedStates, onSelect: onSelectBed)),
+        const InfoPanel(
+          title: 'Bed cards are easier to use',
+          body: 'Tap Log to record a spray. Use Clear to remove spray status from that bed.',
+          icon: CupertinoIcons.square_grid_2x2_fill,
+        ),
         const SizedBox(height: 16),
-        BedDetailCard(bed: bed, state: state, onLogSpray: () => onLogBed(bed.number)),
+        ...groupBeds().entries.map((entry) => BedGroupSection(groupName: entry.key, beds: entry.value, bedState: bedState, onLogBed: onLogBed, onClearBed: onClearBed)),
       ],
     );
   }
+
+  Map<String, List<GardenBed>> groupBeds() {
+    final map = <String, List<GardenBed>>{};
+    for (final bed in gardenBeds) {
+      map.putIfAbsent(bed.group, () => []).add(bed);
+    }
+    return map;
+  }
 }
 
-class MapShell extends StatelessWidget {
-  const MapShell({required this.child, super.key});
+class BedGroupSection extends StatelessWidget {
+  const BedGroupSection({required this.groupName, required this.beds, required this.bedState, required this.onLogBed, required this.onClearBed, super.key});
 
-  final Widget child;
+  final String groupName;
+  final List<GardenBed> beds;
+  final BedDisplayState Function(int bedNumber) bedState;
+  final ValueChanged<int> onLogBed;
+  final ValueChanged<int> onClearBed;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 560,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFBF3),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: const Color(0xFFE5D9C7)),
-        boxShadow: appShadow,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(title: groupName),
+          const SizedBox(height: 10),
+          ...beds.map((bed) => BedStatusCard(bed: bed, state: bedState(bed.number), onLog: () => onLogBed(bed.number), onClear: () => onClearBed(bed.number))),
+        ],
       ),
-      child: child,
     );
   }
 }
 
-class InteractiveGardenMap extends StatelessWidget {
-  const InteractiveGardenMap({required this.selectedBed, required this.bedStates, required this.onSelect, super.key});
+class BedStatusCard extends StatelessWidget {
+  const BedStatusCard({required this.bed, required this.state, required this.onLog, required this.onClear, super.key});
 
-  final int selectedBed;
-  final Map<int, BedDisplayState> bedStates;
-  final ValueChanged<int> onSelect;
+  final GardenBed bed;
+  final BedDisplayState state;
+  final VoidCallback onLog;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final size = Size(constraints.maxWidth, constraints.maxHeight);
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown: (details) {
-            for (final bed in bedZones.reversed) {
-              if (scaleRect(bed.bounds, size).inflate(6).contains(details.localPosition)) {
-                onSelect(bed.number);
-                return;
-              }
-            }
-          },
-          child: CustomPaint(painter: GardenMapPainter(selectedBed: selectedBed, bedStates: bedStates), size: Size.infinite),
-        );
-      },
+    final waiting = state.status == 'Wait';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: premiumDecoration,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              BedNumberBadge(number: bed.number, selected: waiting),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(bed.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+                  Text(state.lastSpray, style: const TextStyle(color: AppColor.muted)),
+                ]),
+              ),
+              StatusPill(status: state.status),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: SecondaryButton(title: 'Log', icon: CupertinoIcons.drop_fill, onPressed: onLog)),
+              const SizedBox(width: 10),
+              Expanded(child: DestructiveButton(title: 'Clear', onPressed: onClear)),
+            ],
+          ),
+        ],
+      ),
     );
   }
-}
-
-class GardenMapPainter extends CustomPainter {
-  const GardenMapPainter({required this.selectedBed, required this.bedStates});
-
-  final int selectedBed;
-  final Map<int, BedDisplayState> bedStates;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    drawGrid(canvas, size);
-    drawOutline(canvas, size, compoundOuter);
-    drawOutline(canvas, size, compoundLowerLeft);
-    drawPath(canvas, size, compoundPath);
-    drawPath(canvas, size, mainPath);
-    for (final bed in bedZones) drawBed(canvas, size, bed);
-  }
-
-  void drawGrid(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFFEDE4D5)..strokeWidth = .45;
-    for (double x = 0; x < size.width; x += 12) canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    for (double y = 0; y < size.height; y += 12) canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-  }
-
-  void drawBed(Canvas canvas, Size size, BedZone bed) {
-    final rect = scaleRect(bed.bounds, size);
-    final selected = bed.number == selectedBed;
-    final waiting = bedStates[bed.number]!.status == 'Wait';
-    final fill = selected ? const Color(0xFFEAF3FF) : waiting ? AppColor.orangeSoft : const Color(0xFFFFF8EA);
-    final border = selected ? AppColor.blue : waiting ? AppColor.orange : AppColor.brown;
-    roundedRect(canvas, rect, fill, border, selected ? 4 : 2);
-    if (waiting) canvas.drawCircle(rect.topRight + const Offset(-12, 12), 5, Paint()..color = AppColor.orange);
-    drawNumber(canvas, rect.center, bed.number, selected);
-  }
-
-  void drawOutline(Canvas canvas, Size size, Rect rect) => roundedRect(canvas, scaleRect(rect, size), const Color(0x00FFFFFF), AppColor.brown, 2);
-
-  void drawPath(Canvas canvas, Size size, Rect rect) {
-    final scaled = scaleRect(rect, size);
-    canvas.drawRRect(RRect.fromRectAndRadius(scaled, const Radius.circular(4)), Paint()..color = AppColor.path);
-    final tilePaint = Paint()..color = const Color(0xFFFFFFFF)..strokeWidth = .7;
-    for (double y = scaled.top + 20; y < scaled.bottom; y += 24) canvas.drawLine(Offset(scaled.left, y), Offset(scaled.right, y), tilePaint);
-  }
-
-  void roundedRect(Canvas canvas, Rect rect, Color fill, Color border, double width) {
-    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(9));
-    canvas.drawRRect(rrect, Paint()..color = fill);
-    canvas.drawRRect(rrect, Paint()..color = border..style = PaintingStyle.stroke..strokeWidth = width);
-  }
-
-  void drawNumber(Canvas canvas, Offset center, int number, bool selected) {
-    canvas.drawCircle(center, selected ? 17 : 15, Paint()..color = selected ? AppColor.blue : AppColor.brown);
-    final text = TextPainter(
-      text: TextSpan(text: '$number', style: TextStyle(color: CupertinoColors.white, fontSize: number > 9 ? 14 : 16, fontWeight: FontWeight.w900)),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    text.paint(canvas, center - Offset(text.width / 2, text.height / 2));
-  }
-
-  @override
-  bool shouldRepaint(covariant GardenMapPainter oldDelegate) => true;
 }
 
 class HistoryScreen extends StatelessWidget {
-  const HistoryScreen({required this.records, super.key});
+  const HistoryScreen({required this.records, required this.onRemove, super.key});
 
   final List<SprayRecord> records;
+  final ValueChanged<int> onRemove;
 
   @override
   Widget build(BuildContext context) {
     return AppPage(
       title: 'History',
-      subtitle: 'Spray records for this session',
-      children: records.isEmpty ? [const EmptyCard('No spray records yet.')] : records.map((record) => SprayRecordCard(record: record)).toList(),
+      subtitle: 'Remove mistakes or review recent sprays',
+      children: records.isEmpty ? [const EmptyCard('No spray records yet.')] : records.map((record) => SprayRecordCard(record: record, onRemove: () => onRemove(record.id))).toList(),
     );
   }
 }
@@ -607,6 +605,27 @@ class PremiumCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(18), decoration: premiumDecoration, child: child);
+}
+
+class InfoPanel extends StatelessWidget {
+  const InfoPanel({required this.title, required this.body, required this.icon, super.key});
+
+  final String title;
+  final String body;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return PremiumCard(
+      child: Row(
+        children: [
+          Icon(icon, color: AppColor.green),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w900)), const SizedBox(height: 4), Text(body, style: const TextStyle(color: AppColor.muted))])),
+        ],
+      ),
+    );
+  }
 }
 
 class MetricCard extends StatelessWidget {
@@ -666,36 +685,29 @@ class BedChip extends StatelessWidget {
   }
 }
 
-class BedDetailCard extends StatelessWidget {
-  const BedDetailCard({required this.bed, required this.state, required this.onLogSpray, super.key});
+class BedNumberBadge extends StatelessWidget {
+  const BedNumberBadge({required this.number, required this.selected, super.key});
 
-  final BedZone bed;
-  final BedDisplayState state;
-  final VoidCallback onLogSpray;
+  final int number;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
-    return PremiumCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [Expanded(child: Text('Bed ${bed.number}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900))), StatusPill(status: state.status)]),
-          const SizedBox(height: 8),
-          Text(bed.label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          Text(state.lastSpray, style: const TextStyle(color: AppColor.muted)),
-          const SizedBox(height: 14),
-          PrimaryButton(title: 'Log spray for Bed ${bed.number}', onPressed: onLogSpray),
-        ],
-      ),
+    return Container(
+      width: 44,
+      height: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: selected ? AppColor.orange : AppColor.green, borderRadius: BorderRadius.circular(16)),
+      child: Text('$number', style: const TextStyle(color: CupertinoColors.white, fontWeight: FontWeight.w900, fontSize: 17)),
     );
   }
 }
 
 class SprayRecordCard extends StatelessWidget {
-  const SprayRecordCard({required this.record, super.key});
+  const SprayRecordCard({required this.record, this.onRemove, super.key});
 
   final SprayRecord record;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -715,7 +727,18 @@ class SprayRecordCard extends StatelessWidget {
               Text('Safe ${dateLabel(record.safeDate)}', style: const TextStyle(fontSize: 13, color: AppColor.text)),
             ]),
           ),
-          StatusPill(status: waiting ? 'Wait' : 'Safe'),
+          Column(
+            children: [
+              StatusPill(status: waiting ? 'Wait' : 'Safe'),
+              if (onRemove != null)
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  minSize: 30,
+                  onPressed: onRemove,
+                  child: const Icon(CupertinoIcons.trash, color: AppColor.red, size: 20),
+                ),
+            ],
+          ),
         ],
       ),
     );
@@ -771,6 +794,43 @@ class PrimaryButton extends StatelessWidget {
   }
 }
 
+class SecondaryButton extends StatelessWidget {
+  const SecondaryButton({required this.title, required this.icon, required this.onPressed, super.key});
+
+  final String title;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      color: AppColor.cardAlt,
+      borderRadius: BorderRadius.circular(16),
+      onPressed: onPressed,
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 16, color: AppColor.green), const SizedBox(width: 6), Text(title, style: const TextStyle(color: AppColor.text, fontWeight: FontWeight.w800))]),
+    );
+  }
+}
+
+class DestructiveButton extends StatelessWidget {
+  const DestructiveButton({required this.title, required this.onPressed, super.key});
+
+  final String title;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      color: AppColor.redSoft,
+      borderRadius: BorderRadius.circular(16),
+      onPressed: onPressed,
+      child: Text(title, style: const TextStyle(color: AppColor.red, fontWeight: FontWeight.w800)),
+    );
+  }
+}
+
 class StatusPill extends StatelessWidget {
   const StatusPill({required this.status, super.key});
 
@@ -788,13 +848,12 @@ class StatusPill extends StatelessWidget {
 }
 
 class SectionHeader extends StatelessWidget {
-  const SectionHeader({required this.title, this.action, super.key});
+  const SectionHeader({required this.title, super.key});
 
   final String title;
-  final String? action;
 
   @override
-  Widget build(BuildContext context) => Row(children: [Expanded(child: Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900))), if (action != null) Text(action!, style: const TextStyle(color: AppColor.green, fontWeight: FontWeight.w800))]);
+  Widget build(BuildContext context) => Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900));
 }
 
 class SectionLabel extends StatelessWidget {
@@ -815,8 +874,5 @@ class EmptyCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(16), decoration: premiumDecoration, child: Text(message, style: const TextStyle(color: AppColor.muted)));
 }
 
-Rect scaleRect(Rect r, Size size) => Rect.fromLTWH(r.left * size.width, r.top * size.height, r.width * size.width, r.height * size.height);
-
 const appShadow = [BoxShadow(color: Color(0x16000000), blurRadius: 24, offset: Offset(0, 12))];
 final premiumDecoration = BoxDecoration(color: AppColor.card, borderRadius: BorderRadius.circular(26), border: Border.all(color: const Color(0xFFE9DECD)), boxShadow: appShadow);
-final cardDecoration = BoxDecoration(color: AppColor.card, borderRadius: BorderRadius.circular(30), border: Border.all(color: const Color(0xFFE9DECD)), boxShadow: appShadow);
