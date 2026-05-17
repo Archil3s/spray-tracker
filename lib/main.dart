@@ -3,21 +3,20 @@ import 'package:flutter/cupertino.dart';
 void main() => runApp(const SprayTrackerApp());
 
 class AppColor {
-  static const bg = Color(0xFFFAF7F0);
-  static const card = Color(0xFFFFFFFF);
-  static const cream = Color(0xFFF6F1E7);
-  static const green = Color(0xFF2F7D32);
-  static const green2 = Color(0xFF5FA85F);
-  static const greenSoft = Color(0xFFEAF6E7);
-  static const orange = Color(0xFFE49A32);
-  static const orangeSoft = Color(0xFFFFE9C8);
-  static const red = Color(0xFFD64B45);
-  static const redSoft = Color(0xFFFFE6E2);
-  static const brown = Color(0xFF8B5A2B);
-  static const path = Color(0xFFC9C4BA);
-  static const text = Color(0xFF20251F);
-  static const muted = Color(0xFF71756D);
-  static const line = Color(0xFFE8DFD1);
+  static const background = Color(0xFFF6F5F0);
+  static const surface = Color(0xFFFFFFFF);
+  static const surfaceSoft = Color(0xFFF1EFE8);
+  static const ink = Color(0xFF1F241F);
+  static const muted = Color(0xFF697067);
+  static const line = Color(0xFFE0DDD4);
+  static const primary = Color(0xFF315F3A);
+  static const primarySoft = Color(0xFFE6EFE8);
+  static const warning = Color(0xFFC9822B);
+  static const warningSoft = Color(0xFFFFF0D8);
+  static const danger = Color(0xFFB84B44);
+  static const dangerSoft = Color(0xFFF9E6E3);
+  static const earth = Color(0xFF7A5230);
+  static const path = Color(0xFFB8B4AA);
 }
 
 class SprayTrackerApp extends StatelessWidget {
@@ -30,9 +29,11 @@ class SprayTrackerApp extends StatelessWidget {
       title: 'Spray Tracker',
       theme: CupertinoThemeData(
         brightness: Brightness.light,
-        primaryColor: AppColor.green,
-        scaffoldBackgroundColor: AppColor.bg,
-        textTheme: CupertinoTextThemeData(textStyle: TextStyle(color: AppColor.text, fontSize: 16)),
+        primaryColor: AppColor.primary,
+        scaffoldBackgroundColor: AppColor.background,
+        textTheme: CupertinoTextThemeData(
+          textStyle: TextStyle(color: AppColor.ink, fontSize: 16),
+        ),
       ),
       home: SprayTrackerHome(),
     );
@@ -41,28 +42,46 @@ class SprayTrackerApp extends StatelessWidget {
 
 class GardenBed {
   const GardenBed(this.number, this.bounds, this.group);
+
   final int number;
   final Rect bounds;
   final String group;
 }
 
 class BedPlant {
-  const BedPlant({required this.name, required this.icon});
+  const BedPlant({required this.name});
+
   final String name;
-  final String icon;
+
+  String get shortLabel {
+    final cleaned = name.trim();
+    if (cleaned.isEmpty) return '';
+    final words = cleaned.split(RegExp(r'\s+')).where((word) => word.isNotEmpty).toList();
+    if (words.length >= 2) return '${words[0][0]}${words[1][0]}'.toUpperCase();
+    return cleaned.length <= 3 ? cleaned.toUpperCase() : cleaned.substring(0, 3).toUpperCase();
+  }
 }
 
 class SprayProduct {
-  const SprayProduct({required this.id, required this.name, required this.type, required this.icon, required this.withholdingDays});
+  const SprayProduct({required this.id, required this.name, required this.type, required this.withholdingDays});
+
   final int id;
   final String name;
   final String type;
-  final String icon;
   final int withholdingDays;
 }
 
 class SprayRecord {
-  const SprayRecord({required this.id, required this.bedNumbers, required this.product, required this.reason, required this.notes, required this.sprayedAt, required this.withholdingDays});
+  const SprayRecord({
+    required this.id,
+    required this.bedNumbers,
+    required this.product,
+    required this.reason,
+    required this.notes,
+    required this.sprayedAt,
+    required this.withholdingDays,
+  });
+
   final int id;
   final List<int> bedNumbers;
   final String product;
@@ -70,11 +89,13 @@ class SprayRecord {
   final String notes;
   final DateTime sprayedAt;
   final int withholdingDays;
+
   DateTime get safeDate => sprayedAt.add(Duration(days: withholdingDays));
 }
 
 class BedStatus {
   const BedStatus({required this.status, required this.summary, required this.daysRemaining});
+
   final String status;
   final String summary;
   final int daysRemaining;
@@ -108,7 +129,7 @@ const mainPath = Rect.fromLTWH(.55, .17, .045, .72);
 String dateLabel(DateTime date) => '${date.day}/${date.month}/${date.year}';
 String shortDate(DateTime date) => '${date.day} ${monthName(date.month)}';
 String monthName(int month) => const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][month - 1];
-GardenBed bedByNumber(int number) => gardenBeds.firstWhere((bed) => bed.number == number);
+Rect scaleRect(Rect r, Size size) => Rect.fromLTWH(r.left * size.width, r.top * size.height, r.width * size.width, r.height * size.height);
 
 class SprayTrackerHome extends StatefulWidget {
   const SprayTrackerHome({super.key});
@@ -120,37 +141,43 @@ class SprayTrackerHome extends StatefulWidget {
 class _SprayTrackerHomeState extends State<SprayTrackerHome> {
   int currentTab = 0;
   int selectedBed = 4;
-  int nextRecordId = 4;
+  int nextRecordId = 1;
   int nextProductId = 4;
   Set<int> selectedBeds = {4};
   String? actionMessage;
 
-  late List<SprayProduct> products;
-  late List<SprayRecord> records;
   final Map<int, BedPlant> plants = {};
+  late List<SprayProduct> products;
+  List<SprayRecord> records = [];
 
   @override
   void initState() {
     super.initState();
     products = const [
-      SprayProduct(id: 1, name: 'Neem Oil', type: 'Pest control', icon: '🌿', withholdingDays: 3),
-      SprayProduct(id: 2, name: 'Copper Spray', type: 'Fungicide', icon: '🛡️', withholdingDays: 7),
-      SprayProduct(id: 3, name: 'Seaweed Tonic', type: 'Plant tonic', icon: '🌵', withholdingDays: 1),
+      SprayProduct(id: 1, name: 'Neem Oil', type: 'Pest control', withholdingDays: 3),
+      SprayProduct(id: 2, name: 'Copper Spray', type: 'Fungicide', withholdingDays: 7),
+      SprayProduct(id: 3, name: 'Seaweed Tonic', type: 'Plant tonic', withholdingDays: 1),
     ].toList();
-    records = [];
   }
 
   BedStatus statusForBed(int bedNumber) {
-    final latest = records.where((r) => r.bedNumbers.contains(bedNumber)).firstOrNull;
-    if (latest == null) return const BedStatus(status: 'Safe', summary: 'No recent sprays', daysRemaining: 0);
+    final latest = records.where((record) => record.bedNumbers.contains(bedNumber)).firstOrNull;
+    if (latest == null) {
+      return const BedStatus(status: 'Safe', summary: 'No recent spray', daysRemaining: 0);
+    }
+
+    final waiting = latest.safeDate.isAfter(DateTime.now());
     final remaining = latest.safeDate.difference(DateTime.now()).inDays + 1;
-    final wait = latest.safeDate.isAfter(DateTime.now());
-    return BedStatus(status: wait ? 'Wait' : 'Safe', summary: '${latest.product} · safe ${shortDate(latest.safeDate)}', daysRemaining: wait ? remaining.clamp(1, 999) : 0);
+    return BedStatus(
+      status: waiting ? 'Wait' : 'Safe',
+      summary: '${latest.product} · safe ${shortDate(latest.safeDate)}',
+      daysRemaining: waiting ? remaining.clamp(1, 999) : 0,
+    );
   }
 
-  int get waitCount => gardenBeds.where((b) => statusForBed(b.number).status == 'Wait').length;
+  int get waitCount => gardenBeds.where((bed) => statusForBed(bed.number).status == 'Wait').length;
   int get safeCount => gardenBeds.length - waitCount;
-  List<SprayRecord> get waitingRecords => records.where((r) => r.safeDate.isAfter(DateTime.now())).toList();
+  List<SprayRecord> get waitingRecords => records.where((record) => record.safeDate.isAfter(DateTime.now())).toList();
 
   void changeTab(int index) => setState(() => currentTab = index);
 
@@ -170,12 +197,24 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
       setState(() => actionMessage = 'Choose at least one bed before saving.');
       return;
     }
+
     final sortedBeds = beds.toList()..sort();
     setState(() {
-      records.insert(0, SprayRecord(id: nextRecordId++, bedNumbers: sortedBeds, product: product.name, reason: reason.trim().isEmpty ? 'General spray' : reason.trim(), notes: notes.trim(), sprayedAt: DateTime.now(), withholdingDays: withholdingDays));
+      records.insert(
+        0,
+        SprayRecord(
+          id: nextRecordId++,
+          bedNumbers: sortedBeds,
+          product: product.name,
+          reason: reason.trim().isEmpty ? 'General spray' : reason.trim(),
+          notes: notes.trim(),
+          sprayedAt: DateTime.now(),
+          withholdingDays: withholdingDays,
+        ),
+      );
       selectedBeds = sortedBeds.toSet();
       selectedBed = sortedBeds.first;
-      actionMessage = 'Saved spray for Bed ${sortedBeds.join(', ')}';
+      actionMessage = 'Spray saved for Bed ${sortedBeds.join(', ')}';
       currentTab = 0;
     });
   }
@@ -184,7 +223,7 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
     setState(() {
       plants[bedNumber] = plant;
       selectedBed = bedNumber;
-      actionMessage = 'Added ${plant.name} to Bed $bedNumber';
+      actionMessage = '${plant.name} added to Bed $bedNumber';
     });
   }
 
@@ -192,72 +231,101 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
     setState(() {
       plants.remove(bedNumber);
       selectedBed = bedNumber;
-      actionMessage = 'Cleared veg from Bed $bedNumber';
+      actionMessage = 'Planting cleared from Bed $bedNumber';
     });
   }
 
   void clearBedSprays(int bedNumber) {
     setState(() {
       final before = records.length;
-      records = records.where((r) => !r.bedNumbers.contains(bedNumber)).toList();
+      records = records.where((record) => !record.bedNumbers.contains(bedNumber)).toList();
       selectedBed = bedNumber;
-      actionMessage = before == records.length ? 'Bed $bedNumber already has no sprays' : 'Cleared spray records for Bed $bedNumber';
+      actionMessage = before == records.length ? 'Bed $bedNumber has no spray records' : 'Spray records cleared from Bed $bedNumber';
     });
   }
 
   void removeRecord(int id) {
     setState(() {
-      records = records.where((r) => r.id != id).toList();
-      actionMessage = 'Removed spray record';
+      records = records.where((record) => record.id != id).toList();
+      actionMessage = 'Spray record removed';
     });
   }
 
   void clearAllHistory() {
     setState(() {
       records = [];
-      actionMessage = 'Cleared all spray history';
+      actionMessage = 'All spray history cleared';
     });
   }
 
   void addProduct(SprayProduct product) {
     setState(() {
-      products.add(SprayProduct(id: nextProductId++, name: product.name, type: product.type, icon: product.icon, withholdingDays: product.withholdingDays));
-      actionMessage = 'Added ${product.name}';
+      products.add(SprayProduct(id: nextProductId++, name: product.name, type: product.type, withholdingDays: product.withholdingDays));
+      actionMessage = '${product.name} added';
     });
   }
 
   void removeProduct(int id) {
     setState(() {
-      final removed = products.where((p) => p.id == id).map((p) => p.name).firstOrNull;
-      products = products.where((p) => p.id != id).toList();
-      if (products.isEmpty) products.add(SprayProduct(id: nextProductId++, name: 'General Spray', type: 'Custom product', icon: '🧪', withholdingDays: 1));
-      actionMessage = removed == null ? 'Product not found' : 'Removed $removed';
+      final removed = products.where((product) => product.id == id).map((product) => product.name).firstOrNull;
+      products = products.where((product) => product.id != id).toList();
+      if (products.isEmpty) {
+        products.add(SprayProduct(id: nextProductId++, name: 'General Spray', type: 'Custom product', withholdingDays: 1));
+      }
+      actionMessage = removed == null ? 'Product not found' : '$removed removed';
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final pages = [
-      DashboardScreen(safeCount: safeCount, waitCount: waitCount, records: records, waitingRecords: waitingRecords, plants: plants, actionMessage: actionMessage, onOpenLog: () => openLog(selectedBeds)),
-      VisualMapScreen(selectedBed: selectedBed, plants: plants, actionMessage: actionMessage, bedStatus: statusForBed, onSelectBed: selectBedOnMap, onSetPlant: setPlantForBed, onClearPlant: clearPlantForBed, onLogBed: (n) => openLog({n}), onClearSprays: clearBedSprays),
-      LogSprayScreen(key: ValueKey('${selectedBeds.join(',')}-${products.length}'), initialBeds: selectedBeds, products: products, plants: plants, onSave: saveSpray),
+      DashboardScreen(
+        safeCount: safeCount,
+        waitCount: waitCount,
+        records: records,
+        waitingRecords: waitingRecords,
+        plants: plants,
+        actionMessage: actionMessage,
+        onOpenLog: () => openLog(selectedBeds),
+      ),
+      VisualMapScreen(
+        selectedBed: selectedBed,
+        plants: plants,
+        actionMessage: actionMessage,
+        bedStatus: statusForBed,
+        onSelectBed: selectBedOnMap,
+        onSetPlant: setPlantForBed,
+        onClearPlant: clearPlantForBed,
+        onLogBed: (bedNumber) => openLog({bedNumber}),
+        onClearSprays: clearBedSprays,
+      ),
+      LogSprayScreen(
+        key: ValueKey('${selectedBeds.join(',')}-${products.length}'),
+        initialBeds: selectedBeds,
+        products: products,
+        plants: plants,
+        onSave: saveSpray,
+      ),
       HistoryScreen(records: records, actionMessage: actionMessage, onRemove: removeRecord, onClearAll: clearAllHistory),
       ProductsScreen(products: products, actionMessage: actionMessage, onAdd: addProduct, onRemove: removeProduct),
     ];
 
     return CupertinoPageScaffold(
-      backgroundColor: AppColor.bg,
+      backgroundColor: AppColor.background,
       child: SafeArea(
         child: Column(
           children: [
             Expanded(child: IndexedStack(index: currentTab, children: pages)),
             DecoratedBox(
-              decoration: const BoxDecoration(color: Color(0xFCFFFFFF), border: Border(top: BorderSide(color: AppColor.line))),
+              decoration: const BoxDecoration(
+                color: Color(0xFCFFFFFF),
+                border: Border(top: BorderSide(color: AppColor.line)),
+              ),
               child: CupertinoTabBar(
                 currentIndex: currentTab,
                 onTap: changeTab,
                 backgroundColor: const Color(0xFCFFFFFF),
-                activeColor: AppColor.green,
+                activeColor: AppColor.primary,
                 inactiveColor: AppColor.muted,
                 items: const [
                   BottomNavigationBarItem(icon: Icon(CupertinoIcons.house), label: 'Dashboard'),
@@ -281,6 +349,7 @@ extension FirstOrNull<T> on Iterable<T> {
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({required this.safeCount, required this.waitCount, required this.records, required this.waitingRecords, required this.plants, required this.actionMessage, required this.onOpenLog, super.key});
+
   final int safeCount;
   final int waitCount;
   final List<SprayRecord> records;
@@ -292,21 +361,20 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final nextSafe = waitingRecords.isEmpty ? null : waitingRecords.reduce((a, b) => a.safeDate.isBefore(b.safeDate) ? a : b);
-    final plantedCount = plants.length;
     return AppPage(
-      title: 'Dashboard',
-      subtitle: 'Your spray safety at a glance.',
+      title: 'Spray Tracker',
+      subtitle: 'Spray records, withholding periods, and bed status.',
       children: [
         if (actionMessage != null) ...[ActionBanner(message: actionMessage!), const SizedBox(height: 12)],
-        DashboardHero(safeCount: safeCount, waitCount: waitCount, plantedCount: plantedCount),
+        DashboardHero(safeCount: safeCount, waitCount: waitCount, plantedCount: plants.length),
         const SizedBox(height: 18),
         NextSafeCard(record: nextSafe),
         const SizedBox(height: 22),
-        SectionHeader(title: 'Recent Sprays', action: records.isEmpty ? null : 'View all'),
+        const SectionHeader(title: 'Recent sprays'),
         const SizedBox(height: 10),
-        if (records.isEmpty) const EmptyCard('No spray records yet.') else ...records.take(3).map((r) => SprayRecordCard(record: r)),
+        if (records.isEmpty) const EmptyCard('No spray records yet.') else ...records.take(3).map((record) => SprayRecordCard(record: record)),
         const SizedBox(height: 12),
-        PrimaryButton(title: 'Log a spray', onPressed: onOpenLog),
+        PrimaryButton(title: 'Log spray', onPressed: onOpenLog),
       ],
     );
   }
@@ -314,6 +382,7 @@ class DashboardScreen extends StatelessWidget {
 
 class DashboardHero extends StatelessWidget {
   const DashboardHero({required this.safeCount, required this.waitCount, required this.plantedCount, super.key});
+
   final int safeCount;
   final int waitCount;
   final int plantedCount;
@@ -322,17 +391,17 @@ class DashboardHero extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(28), gradient: const LinearGradient(colors: [Color(0xFF2D7D32), Color(0xFF5F9F50)], begin: Alignment.topLeft, end: Alignment.bottomRight), boxShadow: shadow),
+      decoration: BoxDecoration(color: AppColor.primary, borderRadius: BorderRadius.circular(24), boxShadow: shadow),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Today’s Overview', style: TextStyle(color: CupertinoColors.white, fontSize: 17, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 18),
+        const Text('Current status', style: TextStyle(color: CupertinoColors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 16),
         Row(children: [
-          Expanded(child: BigMetric(title: 'Safe to Harvest', value: safeCount)),
+          Expanded(child: BigMetric(title: 'Safe', value: safeCount)),
           const SizedBox(width: 12),
-          Expanded(child: BigMetric(title: 'Do Not Harvest', value: waitCount)),
+          Expanded(child: BigMetric(title: 'Withholding', value: waitCount)),
         ]),
-        const SizedBox(height: 12),
-        Text('$plantedCount beds have veg assigned', style: const TextStyle(color: Color(0xEFFFFFFF), fontWeight: FontWeight.w700)),
+        const SizedBox(height: 14),
+        Text('$plantedCount beds assigned', style: const TextStyle(color: Color(0xEFFFFFFF), fontWeight: FontWeight.w700)),
       ]),
     );
   }
@@ -340,25 +409,41 @@ class DashboardHero extends StatelessWidget {
 
 class BigMetric extends StatelessWidget {
   const BigMetric({required this.title, required this.value, super.key});
+
   final String title;
   final int value;
+
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0x1AFFFFFF), borderRadius: BorderRadius.circular(18)), child: Column(children: [Text(title, textAlign: TextAlign.center, style: const TextStyle(color: CupertinoColors.white, fontSize: 12, fontWeight: FontWeight.w700)), const SizedBox(height: 10), Text('$value', style: const TextStyle(color: CupertinoColors.white, fontSize: 36, fontWeight: FontWeight.w900)), const Text('beds', style: TextStyle(color: CupertinoColors.white, fontWeight: FontWeight.w700))]));
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: const Color(0x1AFFFFFF), borderRadius: BorderRadius.circular(16)),
+      child: Column(children: [
+        Text(title, style: const TextStyle(color: CupertinoColors.white, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Text('$value', style: const TextStyle(color: CupertinoColors.white, fontSize: 34, fontWeight: FontWeight.w900)),
+        const Text('beds', style: TextStyle(color: CupertinoColors.white, fontWeight: FontWeight.w600)),
+      ]),
+    );
+  }
 }
 
 class NextSafeCard extends StatelessWidget {
   const NextSafeCard({required this.record, super.key});
+
   final SprayRecord? record;
+
   @override
   Widget build(BuildContext context) {
-    if (record == null) return const SoftInfoCard(icon: '✅', title: 'All sprayed beds are safe', subtitle: 'No active withholding periods.');
+    if (record == null) return const InfoCard(title: 'No active withholding period', subtitle: 'All spray records are currently safe.', icon: CupertinoIcons.check_mark_circled);
     final days = record!.safeDate.difference(DateTime.now()).inDays + 1;
-    return SoftInfoCard(icon: '🌱', title: 'Next Bed Safe', subtitle: 'Bed ${record!.bedNumbers.join(', ')} · safe ${shortDate(record!.safeDate)}', trailing: 'In $days days');
+    return InfoCard(title: 'Next safe harvest', subtitle: 'Bed ${record!.bedNumbers.join(', ')} · ${shortDate(record!.safeDate)}', trailing: '$days days', icon: CupertinoIcons.calendar);
   }
 }
 
 class VisualMapScreen extends StatelessWidget {
   const VisualMapScreen({required this.selectedBed, required this.plants, required this.actionMessage, required this.bedStatus, required this.onSelectBed, required this.onSetPlant, required this.onClearPlant, required this.onLogBed, required this.onClearSprays, super.key});
+
   final int selectedBed;
   final Map<int, BedPlant> plants;
   final String? actionMessage;
@@ -375,12 +460,20 @@ class VisualMapScreen extends StatelessWidget {
     final status = bedStatus(selectedBed);
     return AppPage(
       title: 'Garden Map',
-      subtitle: 'Tap a bed to add what is planted.',
+      subtitle: 'Assign crops and manage spray records by bed.',
       children: [
         if (actionMessage != null) ...[ActionBanner(message: actionMessage!), const SizedBox(height: 12)],
         GardenVisualMap(selectedBed: selectedBed, plants: plants, bedStatus: bedStatus, onSelectBed: onSelectBed),
         const SizedBox(height: 14),
-        SelectedBedPanel(bedNumber: selectedBed, plant: plant, status: status, onAddPlant: () => showPlantDialog(context, selectedBed, plant, onSetPlant), onClearPlant: plant == null ? null : () => onClearPlant(selectedBed), onLog: () => onLogBed(selectedBed), onClearSprays: () => onClearSprays(selectedBed)),
+        SelectedBedPanel(
+          bedNumber: selectedBed,
+          plant: plant,
+          status: status,
+          onAddPlant: () => showPlantDialog(context, selectedBed, plant, onSetPlant),
+          onClearPlant: plant == null ? null : () => onClearPlant(selectedBed),
+          onLog: () => onLogBed(selectedBed),
+          onClearSprays: () => onClearSprays(selectedBed),
+        ),
       ],
     );
   }
@@ -388,6 +481,7 @@ class VisualMapScreen extends StatelessWidget {
 
 class GardenVisualMap extends StatelessWidget {
   const GardenVisualMap({required this.selectedBed, required this.plants, required this.bedStatus, required this.onSelectBed, super.key});
+
   final int selectedBed;
   final Map<int, BedPlant> plants;
   final BedStatus Function(int) bedStatus;
@@ -398,7 +492,7 @@ class GardenVisualMap extends StatelessWidget {
     return Container(
       height: 560,
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0xFFFFFBF3), borderRadius: BorderRadius.circular(26), border: Border.all(color: AppColor.line), boxShadow: subtleShadow),
+      decoration: BoxDecoration(color: AppColor.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColor.line), boxShadow: subtleShadow),
       child: LayoutBuilder(builder: (context, constraints) {
         final size = Size(constraints.maxWidth, constraints.maxHeight);
         return Stack(children: [
@@ -416,6 +510,7 @@ class GardenVisualMap extends StatelessWidget {
 
 class MapBedTile extends StatelessWidget {
   const MapBedTile({required this.bed, required this.rect, required this.selected, required this.plant, required this.status, required this.onTap, super.key});
+
   final GardenBed bed;
   final Rect rect;
   final bool selected;
@@ -425,27 +520,27 @@ class MapBedTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final wait = status.status == 'Wait';
+    final waiting = status.status == 'Wait';
     return Positioned.fromRect(
       rect: rect,
       child: CupertinoButton(
         padding: EdgeInsets.zero,
         onPressed: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
+          duration: const Duration(milliseconds: 140),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFFE6F1FF) : wait ? AppColor.orangeSoft : AppColor.card,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: selected ? CupertinoColors.activeBlue : wait ? AppColor.orange : AppColor.brown, width: selected ? 3 : 2),
+            color: waiting ? AppColor.warningSoft : plant == null ? const Color(0xFFFCFBF7) : AppColor.primarySoft,
+            borderRadius: BorderRadius.circular(7),
+            border: Border.all(color: selected ? CupertinoColors.activeBlue : waiting ? AppColor.warning : AppColor.earth, width: selected ? 3 : 1.7),
           ),
           child: FittedBox(
             fit: BoxFit.scaleDown,
             child: Padding(
-              padding: const EdgeInsets.all(4),
+              padding: const EdgeInsets.all(5),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Text(plant?.icon ?? '${bed.number}', style: TextStyle(fontSize: plant == null ? 14 : 18, fontWeight: FontWeight.w900, color: plant == null ? AppColor.text : null)),
-                if (plant != null) Text(plant!.name, maxLines: 1, style: const TextStyle(color: AppColor.text, fontSize: 9, fontWeight: FontWeight.w700)),
+                Text(plant?.shortLabel ?? '${bed.number}', style: const TextStyle(color: AppColor.ink, fontSize: 13, fontWeight: FontWeight.w900)),
+                if (plant != null) Text(plant!.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColor.muted, fontSize: 8, fontWeight: FontWeight.w700)),
               ]),
             ),
           ),
@@ -457,24 +552,36 @@ class MapBedTile extends StatelessWidget {
 
 class MapOutline extends StatelessWidget {
   const MapOutline({required this.rect, required this.size, super.key});
+
   final Rect rect;
   final Size size;
+
   @override
-  Widget build(BuildContext context) => Positioned.fromRect(rect: scaleRect(rect, size), child: IgnorePointer(child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColor.brown, width: 2)))));
+  Widget build(BuildContext context) => Positioned.fromRect(
+        rect: scaleRect(rect, size),
+        child: IgnorePointer(child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(7), border: Border.all(color: AppColor.earth, width: 1.7)))),
+      );
 }
 
 class MapPath extends StatelessWidget {
   const MapPath({required this.rect, required this.size, super.key});
+
   final Rect rect;
   final Size size;
+
   @override
-  Widget build(BuildContext context) => Positioned.fromRect(rect: scaleRect(rect, size), child: IgnorePointer(child: Container(decoration: BoxDecoration(color: AppColor.path, borderRadius: BorderRadius.circular(4)))));
+  Widget build(BuildContext context) => Positioned.fromRect(
+        rect: scaleRect(rect, size),
+        child: IgnorePointer(child: Container(decoration: BoxDecoration(color: AppColor.path, borderRadius: BorderRadius.circular(3)))),
+      );
 }
 
 class GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFFEFE5D8)..strokeWidth = .5;
+    final paint = Paint()
+      ..color = const Color(0xFFEDEAE2)
+      ..strokeWidth = .45;
     for (double x = 0; x < size.width; x += 12) canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     for (double y = 0; y < size.height; y += 12) canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
   }
@@ -485,6 +592,7 @@ class GridPainter extends CustomPainter {
 
 class SelectedBedPanel extends StatelessWidget {
   const SelectedBedPanel({required this.bedNumber, required this.plant, required this.status, required this.onAddPlant, required this.onClearPlant, required this.onLog, required this.onClearSprays, super.key});
+
   final int bedNumber;
   final BedPlant? plant;
   final BedStatus status;
@@ -498,33 +606,35 @@ class SelectedBedPanel extends StatelessWidget {
     return PremiumCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [Expanded(child: Text('Bed $bedNumber', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900))), StatusPill(status: status.status)]),
       const SizedBox(height: 8),
-      Text(plant == null ? 'Empty bed' : '${plant!.icon} ${plant!.name}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+      Text(plant == null ? 'Empty bed' : plant!.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
       const SizedBox(height: 4),
       Text(status.summary, style: const TextStyle(color: AppColor.muted)),
       const SizedBox(height: 14),
-      Row(children: [Expanded(child: PrimaryButton(title: plant == null ? 'Add veg' : 'Edit veg', onPressed: onAddPlant)), const SizedBox(width: 10), Expanded(child: SecondaryButton(title: 'Log spray', icon: CupertinoIcons.drop_fill, onPressed: onLog))]),
+      Row(children: [Expanded(child: PrimaryButton(title: plant == null ? 'Add crop' : 'Edit crop', onPressed: onAddPlant)), const SizedBox(width: 10), Expanded(child: SecondaryButton(title: 'Log spray', icon: CupertinoIcons.drop_fill, onPressed: onLog))]),
       const SizedBox(height: 10),
-      Row(children: [Expanded(child: DestructiveButton(title: 'Clear spray', onPressed: onClearSprays)), const SizedBox(width: 10), Expanded(child: DestructiveButton(title: 'Clear veg', onPressed: onClearPlant ?? () {}))]),
+      Row(children: [Expanded(child: DestructiveButton(title: 'Clear spray', onPressed: onClearSprays)), const SizedBox(width: 10), Expanded(child: DestructiveButton(title: 'Clear crop', onPressed: onClearPlant))]),
     ]));
   }
 }
 
 void showPlantDialog(BuildContext context, int bedNumber, BedPlant? current, void Function(int, BedPlant) onSave) {
   final name = TextEditingController(text: current?.name ?? '');
-  final icon = TextEditingController(text: current?.icon ?? '🌱');
   showCupertinoDialog<void>(
     context: context,
     builder: (_) => CupertinoAlertDialog(
-      title: Text(current == null ? 'Add veg to Bed $bedNumber' : 'Edit Bed $bedNumber'),
+      title: Text(current == null ? 'Assign crop' : 'Edit crop'),
       content: Column(children: [
         const SizedBox(height: 12),
-        CupertinoTextField(controller: name, placeholder: 'Veg name, e.g. Tomatoes'),
+        Text('Bed $bedNumber', style: const TextStyle(color: AppColor.muted)),
         const SizedBox(height: 8),
-        CupertinoTextField(controller: icon, placeholder: 'Icon, e.g. 🍅'),
+        CupertinoTextField(controller: name, placeholder: 'Crop name, e.g. Tomatoes'),
       ]),
       actions: [
         CupertinoDialogAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
-        CupertinoDialogAction(isDefaultAction: true, child: const Text('Save'), onPressed: () { if (name.text.trim().isNotEmpty) onSave(bedNumber, BedPlant(name: name.text.trim(), icon: icon.text.trim().isEmpty ? '🌱' : icon.text.trim())); Navigator.pop(context); }),
+        CupertinoDialogAction(isDefaultAction: true, child: const Text('Save'), onPressed: () {
+          if (name.text.trim().isNotEmpty) onSave(bedNumber, BedPlant(name: name.text.trim()));
+          Navigator.pop(context);
+        }),
       ],
     ),
   );
@@ -532,6 +642,7 @@ void showPlantDialog(BuildContext context, int bedNumber, BedPlant? current, voi
 
 class LogSprayScreen extends StatefulWidget {
   const LogSprayScreen({required this.initialBeds, required this.products, required this.plants, required this.onSave, super.key});
+
   final Set<int> initialBeds;
   final List<SprayProduct> products;
   final Map<int, BedPlant> plants;
@@ -572,8 +683,8 @@ class _LogSprayScreenState extends State<LogSprayScreen> {
   Widget build(BuildContext context) {
     return AppPage(
       title: 'Log Spray',
-      subtitle: ['Select beds', 'Select product', 'Add details', 'Review & save'][step],
-      leading: step == 0 ? null : CupertinoButton(padding: EdgeInsets.zero, onPressed: goBack, child: const Icon(CupertinoIcons.back, color: AppColor.text)),
+      subtitle: ['Select beds', 'Select product', 'Add details', 'Review and save'][step],
+      leading: step == 0 ? null : CupertinoButton(padding: EdgeInsets.zero, onPressed: goBack, child: const Icon(CupertinoIcons.back, color: AppColor.ink)),
       children: [
         StepProgress(step: step),
         const SizedBox(height: 22),
@@ -594,34 +705,43 @@ class _LogSprayScreenState extends State<LogSprayScreen> {
 
 class StepProgress extends StatelessWidget {
   const StepProgress({required this.step, super.key});
+
   final int step;
+
   @override
-  Widget build(BuildContext context) => Row(children: List.generate(4, (index) => Expanded(child: Row(children: [Expanded(child: Container(height: 3, color: index <= step ? AppColor.green : AppColor.line)), Container(width: 26, height: 26, alignment: Alignment.center, decoration: BoxDecoration(color: index <= step ? AppColor.green : const Color(0xFFE8E8E8), shape: BoxShape.circle), child: Text('${index + 1}', style: TextStyle(color: index <= step ? CupertinoColors.white : AppColor.muted, fontWeight: FontWeight.w900, fontSize: 12)))]))));
+  Widget build(BuildContext context) => Row(children: List.generate(4, (index) => Expanded(child: Row(children: [
+        Expanded(child: Container(height: 3, color: index <= step ? AppColor.primary : AppColor.line)),
+        Container(width: 26, height: 26, alignment: Alignment.center, decoration: BoxDecoration(color: index <= step ? AppColor.primary : AppColor.surfaceSoft, shape: BoxShape.circle), child: Text('${index + 1}', style: TextStyle(color: index <= step ? CupertinoColors.white : AppColor.muted, fontWeight: FontWeight.w900, fontSize: 12))),
+      ]))));
 }
 
 class SelectBedsStep extends StatelessWidget {
   const SelectBedsStep({required this.selectedBeds, required this.plants, required this.onChanged, super.key});
+
   final Set<int> selectedBeds;
   final Map<int, BedPlant> plants;
   final ValueChanged<Set<int>> onChanged;
+
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const SectionHeader(title: 'Select Beds'),
+        const SectionHeader(title: 'Select beds'),
         const SizedBox(height: 6),
-        Text('Selected (${selectedBeds.length})', style: const TextStyle(color: AppColor.muted, fontWeight: FontWeight.w700)),
+        Text('${selectedBeds.length} selected', style: const TextStyle(color: AppColor.muted, fontWeight: FontWeight.w700)),
         const SizedBox(height: 12),
-        Wrap(spacing: 8, runSpacing: 8, children: gardenBeds.map((bed) => BedChip(number: bed.number, selected: selectedBeds.contains(bed.number), label: plants[bed.number]?.icon, onTap: () { final next = {...selectedBeds}; next.contains(bed.number) ? next.remove(bed.number) : next.add(bed.number); onChanged(next); })).toList()),
+        Wrap(spacing: 8, runSpacing: 8, children: gardenBeds.map((bed) => BedChip(number: bed.number, selected: selectedBeds.contains(bed.number), label: plants[bed.number]?.shortLabel, onTap: () { final next = {...selectedBeds}; next.contains(bed.number) ? next.remove(bed.number) : next.add(bed.number); onChanged(next); })).toList()),
       ]);
 }
 
 class SelectProductStep extends StatelessWidget {
   const SelectProductStep({required this.products, required this.selected, required this.onSelected, super.key});
+
   final List<SprayProduct> products;
   final SprayProduct selected;
   final ValueChanged<SprayProduct> onSelected;
+
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const SectionHeader(title: 'Select Product'),
+        const SectionHeader(title: 'Select product'),
         const SizedBox(height: 12),
         ...products.map((product) => ProductSelectCard(product: product, selected: product.id == selected.id, onTap: () => onSelected(product))),
       ]);
@@ -629,77 +749,101 @@ class SelectProductStep extends StatelessWidget {
 
 class ProductSelectCard extends StatelessWidget {
   const ProductSelectCard({required this.product, required this.selected, required this.onTap, super.key});
+
   final SprayProduct product;
   final bool selected;
   final VoidCallback onTap;
+
   @override
-  Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onTap, child: Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: selected ? AppColor.greenSoft : AppColor.card, borderRadius: BorderRadius.circular(18), border: Border.all(color: selected ? AppColor.green : AppColor.line), boxShadow: subtleShadow), child: Row(children: [Text(product.icon, style: const TextStyle(fontSize: 28)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(product.name, style: const TextStyle(color: AppColor.text, fontWeight: FontWeight.w900)), Text('${product.type} · ${product.withholdingDays} days', style: const TextStyle(color: AppColor.muted, fontSize: 12))])), if (selected) const Icon(CupertinoIcons.check_mark_circled_solid, color: AppColor.green)])));
+  Widget build(BuildContext context) => CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: onTap,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: selected ? AppColor.primarySoft : AppColor.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: selected ? AppColor.primary : AppColor.line), boxShadow: subtleShadow),
+          child: Row(children: [
+            Container(width: 36, height: 36, decoration: BoxDecoration(color: AppColor.surfaceSoft, borderRadius: BorderRadius.circular(12)), child: const Icon(CupertinoIcons.drop, color: AppColor.primary)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(product.name, style: const TextStyle(color: AppColor.ink, fontWeight: FontWeight.w900)), Text('${product.type} · ${product.withholdingDays} days', style: const TextStyle(color: AppColor.muted, fontSize: 12))])),
+            if (selected) const Icon(CupertinoIcons.check_mark_circled_solid, color: AppColor.primary),
+          ]),
+        ),
+      );
 }
 
 class DetailsStep extends StatelessWidget {
   const DetailsStep({required this.reasonController, required this.notesController, required this.withholdingDays, required this.onDecrease, required this.onIncrease, super.key});
+
   final TextEditingController reasonController;
   final TextEditingController notesController;
   final int withholdingDays;
   final VoidCallback? onDecrease;
   final VoidCallback onIncrease;
+
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const SectionHeader(title: 'Add Details'),
+        const SectionHeader(title: 'Add details'),
         const SizedBox(height: 14),
         FieldLabel(label: 'Reason', child: CupertinoTextField(controller: reasonController, placeholder: 'Aphids, mildew, tonic, etc.', padding: const EdgeInsets.all(14), decoration: inputDecoration)),
         const SizedBox(height: 14),
-        PremiumCard(child: Row(children: [const Expanded(child: Text('Withholding Period', style: TextStyle(fontWeight: FontWeight.w900))), StepButton(icon: CupertinoIcons.minus, onPressed: onDecrease), Text('$withholdingDays', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)), StepButton(icon: CupertinoIcons.plus, onPressed: onIncrease)])),
+        PremiumCard(child: Row(children: [const Expanded(child: Text('Withholding period', style: TextStyle(fontWeight: FontWeight.w900))), StepButton(icon: CupertinoIcons.minus, onPressed: onDecrease), Text('$withholdingDays', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)), StepButton(icon: CupertinoIcons.plus, onPressed: onIncrease)])),
         const SizedBox(height: 14),
-        FieldLabel(label: 'Notes optional', child: CupertinoTextField(controller: notesController, placeholder: 'Light spray, focused on undersides...', maxLines: 4, padding: const EdgeInsets.all(14), decoration: inputDecoration)),
+        FieldLabel(label: 'Notes optional', child: CupertinoTextField(controller: notesController, placeholder: 'Application notes', maxLines: 4, padding: const EdgeInsets.all(14), decoration: inputDecoration)),
       ]);
 }
 
 class ReviewStep extends StatelessWidget {
   const ReviewStep({required this.beds, required this.product, required this.reason, required this.notes, required this.withholdingDays, super.key});
+
   final Set<int> beds;
   final SprayProduct product;
   final String reason;
   final String notes;
   final int withholdingDays;
+
   @override
   Widget build(BuildContext context) => PremiumCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const SectionHeader(title: 'Summary'),
         const SizedBox(height: 16),
         SummaryRow('Beds', beds.toList()..sort()),
         SummaryRow('Product', product.name),
-        SummaryRow('Date Sprayed', dateLabel(DateTime.now())),
+        SummaryRow('Date sprayed', dateLabel(DateTime.now())),
         SummaryRow('Reason', reason.trim().isEmpty ? 'General spray' : reason.trim()),
         SummaryRow('Withholding', '$withholdingDays days'),
-        SummaryRow('Safe From', dateLabel(DateTime.now().add(Duration(days: withholdingDays)))),
+        SummaryRow('Safe from', dateLabel(DateTime.now().add(Duration(days: withholdingDays)))),
         if (notes.trim().isNotEmpty) SummaryRow('Notes', notes.trim()),
       ]));
 }
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({required this.records, required this.actionMessage, required this.onRemove, required this.onClearAll, super.key});
+
   final List<SprayRecord> records;
   final String? actionMessage;
   final ValueChanged<int> onRemove;
   final VoidCallback onClearAll;
+
   @override
-  Widget build(BuildContext context) => AppPage(title: 'History', subtitle: 'All your spray records.', trailing: const Icon(CupertinoIcons.slider_horizontal_3, color: AppColor.text), children: [
+  Widget build(BuildContext context) => AppPage(title: 'History', subtitle: 'All spray records.', trailing: const Icon(CupertinoIcons.slider_horizontal_3, color: AppColor.ink), children: [
         if (actionMessage != null) ...[ActionBanner(message: actionMessage!), const SizedBox(height: 12)],
         if (records.isNotEmpty) ...[DestructiveButton(title: 'Clear all history', onPressed: onClearAll), const SizedBox(height: 14)],
-        if (records.isEmpty) const EmptyCard('No spray records yet.') else ...records.map((r) => SprayRecordCard(record: r, onRemove: () => onRemove(r.id))),
+        if (records.isEmpty) const EmptyCard('No spray records yet.') else ...records.map((record) => SprayRecordCard(record: record, onRemove: () => onRemove(record.id))),
       ]);
 }
 
 class ProductsScreen extends StatelessWidget {
   const ProductsScreen({required this.products, required this.actionMessage, required this.onAdd, required this.onRemove, super.key});
+
   final List<SprayProduct> products;
   final String? actionMessage;
   final ValueChanged<SprayProduct> onAdd;
   final ValueChanged<int> onRemove;
+
   @override
-  Widget build(BuildContext context) => AppPage(title: 'Products', subtitle: 'Your spray product library.', trailing: CupertinoButton(padding: EdgeInsets.zero, onPressed: () => showAddProductDialog(context, onAdd), child: const Icon(CupertinoIcons.plus, color: AppColor.text)), children: [
+  Widget build(BuildContext context) => AppPage(title: 'Products', subtitle: 'Spray product library.', trailing: CupertinoButton(padding: EdgeInsets.zero, onPressed: () => showAddProductDialog(context, onAdd), child: const Icon(CupertinoIcons.plus, color: AppColor.ink)), children: [
         if (actionMessage != null) ...[ActionBanner(message: actionMessage!), const SizedBox(height: 12)],
-        ...products.map((p) => ProductLibraryCard(product: p, onRemove: () => onRemove(p.id))),
+        ...products.map((product) => ProductLibraryCard(product: product, onRemove: () => onRemove(product.id))),
       ]);
 }
 
@@ -710,11 +854,11 @@ void showAddProductDialog(BuildContext context, ValueChanged<SprayProduct> onAdd
   showCupertinoDialog<void>(
     context: context,
     builder: (_) => CupertinoAlertDialog(
-      title: const Text('Add Product'),
+      title: const Text('Add product'),
       content: Column(children: [const SizedBox(height: 12), CupertinoTextField(controller: name, placeholder: 'Name'), const SizedBox(height: 8), CupertinoTextField(controller: type, placeholder: 'Type'), const SizedBox(height: 8), CupertinoTextField(controller: days, placeholder: 'Withholding days', keyboardType: TextInputType.number)]),
       actions: [
         CupertinoDialogAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
-        CupertinoDialogAction(isDefaultAction: true, child: const Text('Add'), onPressed: () { final parsedDays = int.tryParse(days.text) ?? 1; if (name.text.trim().isNotEmpty) onAdd(SprayProduct(id: 0, name: name.text.trim(), type: type.text.trim().isEmpty ? 'Custom product' : type.text.trim(), icon: '🧪', withholdingDays: parsedDays)); Navigator.pop(context); }),
+        CupertinoDialogAction(isDefaultAction: true, child: const Text('Add'), onPressed: () { final parsedDays = int.tryParse(days.text) ?? 1; if (name.text.trim().isNotEmpty) onAdd(SprayProduct(id: 0, name: name.text.trim(), type: type.text.trim().isEmpty ? 'Custom product' : type.text.trim(), withholdingDays: parsedDays)); Navigator.pop(context); }),
       ],
     ),
   );
@@ -722,34 +866,204 @@ void showAddProductDialog(BuildContext context, ValueChanged<SprayProduct> onAdd
 
 class AppPage extends StatelessWidget {
   const AppPage({required this.title, required this.subtitle, required this.children, this.leading, this.trailing, super.key});
+
   final String title;
   final String subtitle;
   final List<Widget> children;
   final Widget? leading;
   final Widget? trailing;
+
   @override
-  Widget build(BuildContext context) => ListView(padding: const EdgeInsets.fromLTRB(20, 18, 20, 34), children: [Row(children: [if (leading != null) ...[leading!, const SizedBox(width: 8)], Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: AppColor.text)), Text(subtitle, style: const TextStyle(fontSize: 14, color: AppColor.muted))])), if (trailing != null) trailing!]), const SizedBox(height: 24), ...children]);
+  Widget build(BuildContext context) => ListView(padding: const EdgeInsets.fromLTRB(20, 18, 20, 34), children: [
+        Row(children: [
+          if (leading != null) ...[leading!, const SizedBox(width: 8)],
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: AppColor.ink)), Text(subtitle, style: const TextStyle(fontSize: 14, color: AppColor.muted))])),
+          if (trailing != null) trailing!,
+        ]),
+        const SizedBox(height: 24),
+        ...children,
+      ]);
 }
 
-class ActionBanner extends StatelessWidget { const ActionBanner({required this.message, super.key}); final String message; @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: AppColor.greenSoft, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFBBDDB8))), child: Row(children: [const Icon(CupertinoIcons.check_mark_circled_solid, color: AppColor.green), const SizedBox(width: 10), Expanded(child: Text(message, style: const TextStyle(color: AppColor.green, fontWeight: FontWeight.w800)))])); }
-class SoftInfoCard extends StatelessWidget { const SoftInfoCard({required this.icon, required this.title, required this.subtitle, this.trailing, super.key}); final String icon; final String title; final String subtitle; final String? trailing; @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: AppColor.greenSoft, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFD2EACF))), child: Row(children: [Text(icon, style: const TextStyle(fontSize: 24)), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w900)), Text(subtitle, style: const TextStyle(color: AppColor.muted, fontSize: 12))])), if (trailing != null) StatusChip(text: trailing!, color: AppColor.green, bg: AppColor.card)])); }
-class PremiumCard extends StatelessWidget { const PremiumCard({required this.child, super.key}); final Widget child; @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(16), decoration: cardDecoration, child: child); }
-class EmptyCard extends StatelessWidget { const EmptyCard(this.message, {super.key}); final String message; @override Widget build(BuildContext context) => PremiumCard(child: Text(message, style: const TextStyle(color: AppColor.muted))); }
-class SectionHeader extends StatelessWidget { const SectionHeader({required this.title, this.action, super.key}); final String title; final String? action; @override Widget build(BuildContext context) => Row(children: [Expanded(child: Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900))), if (action != null) Text(action!, style: const TextStyle(color: AppColor.green, fontWeight: FontWeight.w800))]); }
-class FieldLabel extends StatelessWidget { const FieldLabel({required this.label, required this.child, super.key}); final String label; final Widget child; @override Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontWeight: FontWeight.w900)), const SizedBox(height: 8), child]); }
-class SummaryRow extends StatelessWidget { const SummaryRow(this.label, this.value, {super.key}); final String label; final Object value; @override Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 12), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: Text(label, style: const TextStyle(color: AppColor.muted, fontWeight: FontWeight.w700))), Expanded(child: Text('$value', textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w800)))])); }
-class BedChip extends StatelessWidget { const BedChip({required this.number, required this.selected, required this.onTap, this.label, super.key}); final int number; final bool selected; final String? label; final VoidCallback onTap; @override Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onTap, child: Container(width: 46, height: 40, alignment: Alignment.center, decoration: BoxDecoration(color: selected ? AppColor.green : AppColor.card, borderRadius: BorderRadius.circular(12), border: Border.all(color: selected ? AppColor.green : AppColor.line)), child: Text(label ?? '$number', style: TextStyle(color: selected ? CupertinoColors.white : AppColor.text, fontWeight: FontWeight.w900)))); }
-class StatusPill extends StatelessWidget { const StatusPill({required this.status, super.key}); final String status; @override Widget build(BuildContext context) { final wait = status == 'Wait'; return StatusChip(text: status.toUpperCase(), color: wait ? AppColor.orange : AppColor.green, bg: wait ? AppColor.orangeSoft : AppColor.greenSoft); } }
-class StatusChip extends StatelessWidget { const StatusChip({required this.text, required this.color, required this.bg, super.key}); final String text; final Color color; final Color bg; @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)), child: Text(text, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w900))); }
-class StepButton extends StatelessWidget { const StepButton({required this.icon, required this.onPressed, super.key}); final IconData icon; final VoidCallback? onPressed; @override Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onPressed, child: Icon(icon, color: onPressed == null ? AppColor.muted : AppColor.green)); }
-class PrimaryButton extends StatelessWidget { const PrimaryButton({required this.title, required this.onPressed, super.key}); final String title; final VoidCallback onPressed; @override Widget build(BuildContext context) => CupertinoButton(color: AppColor.green, borderRadius: BorderRadius.circular(14), padding: const EdgeInsets.symmetric(vertical: 14), onPressed: onPressed, child: Text(title, style: const TextStyle(fontWeight: FontWeight.w900))); }
-class SecondaryButton extends StatelessWidget { const SecondaryButton({required this.title, required this.icon, required this.onPressed, super.key}); final String title; final IconData icon; final VoidCallback onPressed; @override Widget build(BuildContext context) => CupertinoButton(color: AppColor.cream, borderRadius: BorderRadius.circular(14), padding: const EdgeInsets.symmetric(vertical: 10), onPressed: onPressed, child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 16, color: AppColor.green), const SizedBox(width: 6), Text(title, style: const TextStyle(color: AppColor.text, fontWeight: FontWeight.w800))])); }
-class DestructiveButton extends StatelessWidget { const DestructiveButton({required this.title, required this.onPressed, super.key}); final String title; final VoidCallback onPressed; @override Widget build(BuildContext context) => CupertinoButton(color: AppColor.redSoft, borderRadius: BorderRadius.circular(14), padding: const EdgeInsets.symmetric(vertical: 10), onPressed: onPressed, child: Text(title, style: const TextStyle(color: AppColor.red, fontWeight: FontWeight.w800))); }
-class SprayRecordCard extends StatelessWidget { const SprayRecordCard({required this.record, this.onRemove, super.key}); final SprayRecord record; final VoidCallback? onRemove; @override Widget build(BuildContext context) { final wait = record.safeDate.isAfter(DateTime.now()); return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(16), decoration: cardDecoration, child: Row(children: [Container(width: 42, height: 42, alignment: Alignment.center, decoration: BoxDecoration(color: AppColor.greenSoft, borderRadius: BorderRadius.circular(14)), child: const Text('🌿', style: TextStyle(fontSize: 22))), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Bed ${record.bedNumbers.join(', ')}', style: const TextStyle(fontWeight: FontWeight.w900)), Text(record.product, style: const TextStyle(color: AppColor.text)), Text('${record.withholdingDays} days · ${shortDate(record.sprayedAt)}', style: const TextStyle(color: AppColor.muted, fontSize: 12))])), Column(children: [StatusPill(status: wait ? 'Wait' : 'Safe'), if (onRemove != null) CupertinoButton(padding: EdgeInsets.zero, minSize: 30, onPressed: onRemove, child: const Icon(CupertinoIcons.trash, color: AppColor.red, size: 20))]) ])); } }
-class ProductLibraryCard extends StatelessWidget { const ProductLibraryCard({required this.product, required this.onRemove, super.key}); final SprayProduct product; final VoidCallback onRemove; @override Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(16), decoration: cardDecoration, child: Row(children: [Container(width: 46, height: 46, alignment: Alignment.center, decoration: BoxDecoration(color: AppColor.greenSoft, borderRadius: BorderRadius.circular(15)), child: Text(product.icon, style: const TextStyle(fontSize: 24))), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(product.name, style: const TextStyle(fontWeight: FontWeight.w900)), Text(product.type, style: const TextStyle(color: AppColor.muted)), Text('Withholding: ${product.withholdingDays} days', style: const TextStyle(color: AppColor.text, fontSize: 12))])), CupertinoButton(padding: EdgeInsets.zero, onPressed: onRemove, child: const Icon(CupertinoIcons.ellipsis_vertical, color: AppColor.muted))])); }
+class ActionBanner extends StatelessWidget {
+  const ActionBanner({required this.message, super.key});
 
-Rect scaleRect(Rect r, Size size) => Rect.fromLTWH(r.left * size.width, r.top * size.height, r.width * size.width, r.height * size.height);
-const shadow = [BoxShadow(color: Color(0x18000000), blurRadius: 24, offset: Offset(0, 10))];
-const subtleShadow = [BoxShadow(color: Color(0x0D000000), blurRadius: 14, offset: Offset(0, 5))];
-final cardDecoration = BoxDecoration(color: AppColor.card, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColor.line), boxShadow: subtleShadow);
-final inputDecoration = BoxDecoration(color: AppColor.card, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColor.line));
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: AppColor.primarySoft, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColor.primary.withOpacity(.25))), child: Row(children: [const Icon(CupertinoIcons.check_mark_circled_solid, color: AppColor.primary), const SizedBox(width: 10), Expanded(child: Text(message, style: const TextStyle(color: AppColor.primary, fontWeight: FontWeight.w800)))]));
+}
+
+class InfoCard extends StatelessWidget {
+  const InfoCard({required this.title, required this.subtitle, required this.icon, this.trailing, super.key});
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final String? trailing;
+
+  @override
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: AppColor.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColor.line), boxShadow: subtleShadow), child: Row(children: [Icon(icon, color: AppColor.primary), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w900)), Text(subtitle, style: const TextStyle(color: AppColor.muted, fontSize: 12))])), if (trailing != null) StatusChip(text: trailing!, color: AppColor.primary, bg: AppColor.primarySoft)]));
+}
+
+class PremiumCard extends StatelessWidget {
+  const PremiumCard({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(16), decoration: cardDecoration, child: child);
+}
+
+class EmptyCard extends StatelessWidget {
+  const EmptyCard(this.message, {super.key});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => PremiumCard(child: Text(message, style: const TextStyle(color: AppColor.muted)));
+}
+
+class SectionHeader extends StatelessWidget {
+  const SectionHeader({required this.title, this.action, super.key});
+
+  final String title;
+  final String? action;
+
+  @override
+  Widget build(BuildContext context) => Row(children: [Expanded(child: Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900))), if (action != null) Text(action!, style: const TextStyle(color: AppColor.primary, fontWeight: FontWeight.w800))]);
+}
+
+class FieldLabel extends StatelessWidget {
+  const FieldLabel({required this.label, required this.child, super.key});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontWeight: FontWeight.w900)), const SizedBox(height: 8), child]);
+}
+
+class SummaryRow extends StatelessWidget {
+  const SummaryRow(this.label, this.value, {super.key});
+
+  final String label;
+  final Object value;
+
+  @override
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 12), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: Text(label, style: const TextStyle(color: AppColor.muted, fontWeight: FontWeight.w700))), Expanded(child: Text('$value', textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w800)))]));
+}
+
+class BedChip extends StatelessWidget {
+  const BedChip({required this.number, required this.selected, required this.onTap, this.label, super.key});
+
+  final int number;
+  final bool selected;
+  final String? label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onTap, child: Container(width: 46, height: 40, alignment: Alignment.center, decoration: BoxDecoration(color: selected ? AppColor.primary : AppColor.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: selected ? AppColor.primary : AppColor.line)), child: Text(label ?? '$number', style: TextStyle(color: selected ? CupertinoColors.white : AppColor.ink, fontWeight: FontWeight.w900, fontSize: label == null ? 14 : 12))));
+}
+
+class StatusPill extends StatelessWidget {
+  const StatusPill({required this.status, super.key});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final waiting = status == 'Wait';
+    return StatusChip(text: status.toUpperCase(), color: waiting ? AppColor.warning : AppColor.primary, bg: waiting ? AppColor.warningSoft : AppColor.primarySoft);
+  }
+}
+
+class StatusChip extends StatelessWidget {
+  const StatusChip({required this.text, required this.color, required this.bg, super.key});
+
+  final String text;
+  final Color color;
+  final Color bg;
+
+  @override
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)), child: Text(text, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w900)));
+}
+
+class StepButton extends StatelessWidget {
+  const StepButton({required this.icon, required this.onPressed, super.key});
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onPressed, child: Icon(icon, color: onPressed == null ? AppColor.muted : AppColor.primary));
+}
+
+class PrimaryButton extends StatelessWidget {
+  const PrimaryButton({required this.title, required this.onPressed, super.key});
+
+  final String title;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => CupertinoButton(color: AppColor.primary, borderRadius: BorderRadius.circular(14), padding: const EdgeInsets.symmetric(vertical: 14), onPressed: onPressed, child: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)));
+}
+
+class SecondaryButton extends StatelessWidget {
+  const SecondaryButton({required this.title, required this.icon, required this.onPressed, super.key});
+
+  final String title;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => CupertinoButton(color: AppColor.surfaceSoft, borderRadius: BorderRadius.circular(14), padding: const EdgeInsets.symmetric(vertical: 10), onPressed: onPressed, child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 16, color: AppColor.primary), const SizedBox(width: 6), Text(title, style: const TextStyle(color: AppColor.ink, fontWeight: FontWeight.w800))]));
+}
+
+class DestructiveButton extends StatelessWidget {
+  const DestructiveButton({required this.title, required this.onPressed, super.key});
+
+  final String title;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => CupertinoButton(color: AppColor.dangerSoft, borderRadius: BorderRadius.circular(14), padding: const EdgeInsets.symmetric(vertical: 10), onPressed: onPressed, child: Text(title, style: TextStyle(color: onPressed == null ? AppColor.muted : AppColor.danger, fontWeight: FontWeight.w800)));
+}
+
+class SprayRecordCard extends StatelessWidget {
+  const SprayRecordCard({required this.record, this.onRemove, super.key});
+
+  final SprayRecord record;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final waiting = record.safeDate.isAfter(DateTime.now());
+    return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(16), decoration: cardDecoration, child: Row(children: [
+      Container(width: 42, height: 42, decoration: BoxDecoration(color: AppColor.primarySoft, borderRadius: BorderRadius.circular(14)), child: const Icon(CupertinoIcons.drop, color: AppColor.primary)),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Bed ${record.bedNumbers.join(', ')}', style: const TextStyle(fontWeight: FontWeight.w900)), Text(record.product, style: const TextStyle(color: AppColor.ink)), Text('${record.withholdingDays} days · ${shortDate(record.sprayedAt)}', style: const TextStyle(color: AppColor.muted, fontSize: 12))])),
+      Column(children: [StatusPill(status: waiting ? 'Wait' : 'Safe'), if (onRemove != null) CupertinoButton(padding: EdgeInsets.zero, minSize: 30, onPressed: onRemove, child: const Icon(CupertinoIcons.trash, color: AppColor.danger, size: 20))]),
+    ]));
+  }
+}
+
+class ProductLibraryCard extends StatelessWidget {
+  const ProductLibraryCard({required this.product, required this.onRemove, super.key});
+
+  final SprayProduct product;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(16), decoration: cardDecoration, child: Row(children: [
+        Container(width: 46, height: 46, decoration: BoxDecoration(color: AppColor.primarySoft, borderRadius: BorderRadius.circular(15)), child: const Icon(CupertinoIcons.cube_box, color: AppColor.primary)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(product.name, style: const TextStyle(fontWeight: FontWeight.w900)), Text(product.type, style: const TextStyle(color: AppColor.muted)), Text('Withholding: ${product.withholdingDays} days', style: const TextStyle(color: AppColor.ink, fontSize: 12))])),
+        CupertinoButton(padding: EdgeInsets.zero, onPressed: onRemove, child: const Icon(CupertinoIcons.trash, color: AppColor.danger, size: 20)),
+      ]));
+}
+
+const shadow = [BoxShadow(color: Color(0x16000000), blurRadius: 18, offset: Offset(0, 8))];
+const subtleShadow = [BoxShadow(color: Color(0x0D000000), blurRadius: 12, offset: Offset(0, 4))];
+final cardDecoration = BoxDecoration(color: AppColor.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColor.line), boxShadow: subtleShadow);
+final inputDecoration = BoxDecoration(color: AppColor.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColor.line));
