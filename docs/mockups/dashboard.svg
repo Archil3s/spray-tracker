@@ -1,0 +1,36 @@
+<svg width="390" height="844" viewBox="0 0 390 844" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" rx="36" fill="#F2F2F7"/>
+  <text x="24" y="64" font-family="-apple-system, BlinkMacSystemFont, Arial" font-size="34" font-weight="800" fill="#111111">Spray Tracker</text>
+  <text x="24" y="91" font-family="-apple-system, BlinkMacSystemFont, Arial" font-size="16" fill="#6E6E73">Garden safety at a glance</text>
+  <rect x="24" y="124" width="161" height="148" rx="22" fill="white"/>
+  <text x="44" y="166" font-family="Arial" font-size="26" fill="#34C759">✓</text>
+  <text x="44" y="213" font-family="Arial" font-size="36" font-weight="800" fill="#111111">6</text>
+  <text x="44" y="237" font-family="Arial" font-size="14" fill="#6E6E73">crops</text>
+  <text x="44" y="257" font-family="Arial" font-size="15" font-weight="700" fill="#111111">Safe now</text>
+  <rect x="205" y="124" width="161" height="148" rx="22" fill="white"/>
+  <text x="225" y="166" font-family="Arial" font-size="26" fill="#FF9500">!</text>
+  <text x="225" y="213" font-family="Arial" font-size="36" font-weight="800" fill="#111111">2</text>
+  <text x="225" y="237" font-family="Arial" font-size="14" fill="#6E6E73">areas</text>
+  <text x="225" y="257" font-family="Arial" font-size="15" font-weight="700" fill="#111111">Do not harvest</text>
+  <rect x="24" y="292" width="342" height="74" rx="22" fill="#34C759"/>
+  <text x="51" y="337" font-family="Arial" font-size="20" font-weight="800" fill="white">＋ Log a spray now</text>
+  <text x="24" y="414" font-family="Arial" font-size="22" font-weight="800" fill="#111111">Recent sprays</text>
+  <rect x="24" y="432" width="342" height="88" rx="22" fill="white"/>
+  <circle cx="62" cy="476" r="22" fill="#E5F7E8"/>
+  <text x="54" y="485" font-family="Arial" font-size="23" fill="#34C759">•</text>
+  <text x="94" y="465" font-family="Arial" font-size="17" font-weight="700" fill="#111111">Neem oil</text>
+  <text x="94" y="488" font-family="Arial" font-size="14" fill="#6E6E73">Tomatoes · Greenhouse</text>
+  <text x="94" y="508" font-family="Arial" font-size="13" fill="#111111">Safe from 20 May</text>
+  <rect x="302" y="459" width="44" height="26" rx="13" fill="#FFF1D6"/>
+  <text x="312" y="477" font-family="Arial" font-size="12" font-weight="700" fill="#FF9500">Wait</text>
+  <rect x="24" y="532" width="342" height="88" rx="22" fill="white"/>
+  <text x="94" y="565" font-family="Arial" font-size="17" font-weight="700" fill="#111111">Seaweed tonic</text>
+  <text x="94" y="588" font-family="Arial" font-size="14" fill="#6E6E73">Silverbeet · Main patch</text>
+  <text x="94" y="608" font-family="Arial" font-size="13" fill="#111111">Safe now</text>
+  <rect x="302" y="559" width="44" height="26" rx="13" fill="#E5F7E8"/>
+  <text x="312" y="577" font-family="Arial" font-size="12" font-weight="700" fill="#34C759">Safe</text>
+  <text x="24" y="668" font-family="Arial" font-size="22" font-weight="800" fill="#111111">Next checks</text>
+  <rect x="24" y="686" width="342" height="86" rx="22" fill="white"/>
+  <text x="52" y="733" font-family="Arial" font-size="18" font-weight="700" fill="#111111">Inspect tomatoes tomorrow</text>
+  <text x="52" y="756" font-family="Arial" font-size="14" fill="#6E6E73">Check aphids before repeating neem oil.</text>
+</svg>
