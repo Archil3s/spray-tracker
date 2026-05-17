@@ -20,25 +20,6 @@ class AppColor {
   static const path = Color(0xFFB8B4AA);
 }
 
-class SprayTrackerApp extends StatelessWidget {
-  const SprayTrackerApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const CupertinoApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Spray Tracker',
-      theme: CupertinoThemeData(
-        brightness: Brightness.light,
-        primaryColor: AppColor.primary,
-        scaffoldBackgroundColor: AppColor.background,
-        textTheme: CupertinoTextThemeData(textStyle: TextStyle(color: AppColor.ink, fontSize: 16)),
-      ),
-      home: SprayTrackerHome(),
-    );
-  }
-}
-
 class GardenBed {
   const GardenBed(this.number, this.bounds, this.group);
   final int number;
@@ -283,10 +264,11 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
   void addCropToBed(int bedNumber, CropProfile crop) {
     setState(() {
       final current = [...bedCrops[bedNumber] ?? <CropProfile>[]];
-      if (!current.any((existing) => existing.name == crop.name)) current.add(crop);
+      final alreadyAssigned = current.any((existing) => existing.name == crop.name);
+      if (!alreadyAssigned) current.add(crop);
       bedCrops[bedNumber] = current;
       selectedBed = bedNumber;
-      actionMessage = current.any((existing) => existing.name == crop.name) ? '${crop.name} added to Bed $bedNumber' : 'Crop already assigned to Bed $bedNumber';
+      actionMessage = alreadyAssigned ? '${crop.name} is already assigned to Bed $bedNumber' : '${crop.name} added to Bed $bedNumber';
     });
   }
 
@@ -592,7 +574,18 @@ void showCropPicker(BuildContext context, int bedNumber, List<CropProfile> assig
     message: const Text('Choose one or more crop profiles. The bed can contain mixed vegetables.'),
     actions: cropProfiles.map((crop) {
       final alreadyAdded = assigned.any((item) => item.name == crop.name);
-      return CupertinoActionSheetAction(onPressed: alreadyAdded ? null : () { onSave(bedNumber, crop); Navigator.pop(context); }, child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [SizedBox(width: 24, height: 24, child: SvgPicture.asset(crop.iconPath)), const SizedBox(width: 10), Text(alreadyAdded ? '${crop.name} added' : crop.name)]));
+      return CupertinoActionSheetAction(
+        onPressed: () {
+          if (alreadyAdded) return;
+          onSave(bedNumber, crop);
+          Navigator.pop(context);
+        },
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          SizedBox(width: 24, height: 24, child: SvgPicture.asset(crop.iconPath)),
+          const SizedBox(width: 10),
+          Text(alreadyAdded ? '${crop.name} added' : crop.name, style: TextStyle(color: alreadyAdded ? AppColor.muted : CupertinoColors.activeBlue)),
+        ]),
+      );
     }).toList(),
     cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Done')),
   ));
@@ -820,7 +813,7 @@ class AppPage extends StatelessWidget {
   Widget build(BuildContext context) => ListView(padding: const EdgeInsets.fromLTRB(20, 18, 20, 34), children: [Row(children: [if (leading != null) ...[leading!, const SizedBox(width: 8)], Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: AppColor.ink)), Text(subtitle, style: const TextStyle(fontSize: 14, color: AppColor.muted))])), if (trailing != null) trailing!]), const SizedBox(height: 24), ...children]);
 }
 
-class ActionBanner extends StatelessWidget { const ActionBanner({required this.message, super.key}); final String message; @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: AppColor.primarySoft, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColor.primary.withValues(alpha: .25))), child: Row(children: [const Icon(CupertinoIcons.check_mark_circled_solid, color: AppColor.primary), const SizedBox(width: 10), Expanded(child: Text(message, style: const TextStyle(color: AppColor.primary, fontWeight: FontWeight.w800)))])); }
+class ActionBanner extends StatelessWidget { const ActionBanner({required this.message, super.key}); final String message; @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: AppColor.primarySoft, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColor.primary.withOpacity(.25))), child: Row(children: [const Icon(CupertinoIcons.check_mark_circled_solid, color: AppColor.primary), const SizedBox(width: 10), Expanded(child: Text(message, style: const TextStyle(color: AppColor.primary, fontWeight: FontWeight.w800)))])); }
 class InfoCard extends StatelessWidget { const InfoCard({required this.title, required this.subtitle, required this.icon, this.trailing, super.key}); final String title; final String subtitle; final IconData icon; final String? trailing; @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: AppColor.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColor.line), boxShadow: subtleShadow), child: Row(children: [Icon(icon, color: AppColor.primary), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w900)), Text(subtitle, style: const TextStyle(color: AppColor.muted, fontSize: 12))])), if (trailing != null) StatusChip(text: trailing!, color: AppColor.primary, bg: AppColor.primarySoft)])); }
 class PremiumCard extends StatelessWidget { const PremiumCard({required this.child, super.key}); final Widget child; @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(16), decoration: cardDecoration, child: child); }
 class EmptyCard extends StatelessWidget { const EmptyCard(this.message, {super.key}); final String message; @override Widget build(BuildContext context) => PremiumCard(child: Text(message, style: const TextStyle(color: AppColor.muted))); }
