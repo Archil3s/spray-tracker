@@ -115,6 +115,58 @@ flowchart LR
 | Specialty | Asparagus, okra, kumara, specialty crops | <img src="../assets/veg_icons/root.svg" width="28" /> |
 | Berries | Strawberries, raspberries, blueberries | <img src="../assets/veg_icons/berry.svg" width="28" /> |
 
+## Orchard, Bush, Herb, Flower Expansion
+
+This is the next crop expansion set for garden items similar to what seed catalogues commonly include: orchard plants, berry bushes, herbs, flowers, pollinator plants, and companion plants.
+
+### Proposed new family cards
+
+| New family | Examples | Icon direction |
+|---|---|---|
+| Fruit Trees | Apple, pear, peach, plum, apricot, cherry | Rounded tree canopy with small fruit dots |
+| Citrus Trees | Lemon, lime, orange, mandarin | Glossy green tree with orange/yellow fruit |
+| Nut Trees | Hazelnut, almond, walnut, chestnut | Tree canopy with nut cluster |
+| Berry Bushes | Raspberry, blueberry, currant, gooseberry, blackberry | Compact bush with berry clusters |
+| Fruit Vines | Grape, kiwifruit, passionfruit | Twining vine with fruit cluster |
+| Culinary Herbs | Basil, parsley, coriander, dill, chives, oregano | Herb leaf bunch in a small bundle |
+| Medicinal / Tea Herbs | Chamomile, mint, lemon balm, echinacea | Soft herb bundle with flower detail |
+| Flowers | Sunflower, calendula, nasturtium, zinnia, cosmos | Bright flower head silhouette |
+| Pollinator Plants | Borage, phacelia, alyssum, lavender | Bee-friendly flower cluster |
+| Companion Plants | Marigold, nasturtium, basil, dill, calendula | Mixed companion bouquet |
+| Native / Shelter Plants | Flax, manuka, kanuka, coprosma | Native leaf/flax silhouette |
+| Green Manure / Cover Crops | Lupin, mustard, oats, buckwheat, clover | Ground-cover clump with seed heads |
+
+### Proposed individual icons
+
+```text
+fruit_tree.svg
+citrus_tree.svg
+nut_tree.svg
+berry_bush.svg
+fruit_vine.svg
+herb_basil.svg
+herb_mint.svg
+herb_parsley.svg
+herb_coriander.svg
+herb_dill.svg
+herb_chives.svg
+flower_sunflower.svg
+flower_calendula.svg
+flower_nasturtium.svg
+flower_lavender.svg
+flower_borage.svg
+companion_marigold.svg
+cover_crop_clover.svg
+cover_crop_lupin.svg
+native_flax.svg
+```
+
+## Current Asset Write Status
+
+The concept image sheet has been generated in chat, but it is not yet usable by Flutter as individual transparent app assets. The app needs separate asset files per icon, preferably SVG or transparent PNG.
+
+Current blocker: direct SVG file upload through the connected GitHub write tool failed during this pass. The safe next route is to add the icons from the local project folder with PowerShell or Git, then commit them from the PC.
+
 ## Next Icon Work
 
 Replace placeholder/shared icons with individual animated-style SVGs:
@@ -150,6 +202,15 @@ kumara.svg
 strawberry.svg
 raspberry.svg
 blueberry.svg
+fruit_tree.svg
+citrus_tree.svg
+berry_bush.svg
+fruit_vine.svg
+herb_basil.svg
+flower_sunflower.svg
+flower_lavender.svg
+cover_crop_clover.svg
+native_flax.svg
 ```
 
 ## Design Direction
