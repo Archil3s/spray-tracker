@@ -224,10 +224,7 @@ class FeedingAdvisorRow extends StatelessWidget {
 }
 
 void showFeedDialog(BuildContext context, void Function({required Set<int> beds, required FeedProductPreset preset, required String note}) onSave) {
-  showCupertinoModalPopup<void>(
-    context: context,
-    builder: (_) => Sheet(child: FeedLogSheet(onSave: onSave)),
-  );
+  showCupertinoModalPopup<void>(context: context, builder: (_) => Sheet(child: FeedLogSheet(onSave: onSave)));
 }
 
 class FeedLogSheet extends StatefulWidget {
@@ -312,7 +309,11 @@ if ($src -notmatch 'class FeedingAdvisorCard') {
 }
 
 if ($src -notmatch 'List<FeedRecord> feedRecords') {
-  $src = $src.Replace('  late List<SprayProduct> products;', '  late List<SprayProduct> products;`r`n  int nextFeedId = 1;`r`n  List<FeedRecord> feedRecords = [];')
+  if ($src -match '\s+late List<SprayProduct> products;') {
+    $src = [regex]::Replace($src, '(\s+late List<SprayProduct> products;)', "`$1`r`n  int nextFeedId = 1;`r`n  List<FeedRecord> feedRecords = [];", 1)
+  } else {
+    throw 'Could not find products field insertion point for feedRecords.'
+  }
 }
 
 if ($src -notmatch 'void saveFeed') {
@@ -324,12 +325,19 @@ if ($src -notmatch 'void saveFeed') {
         message = '${preset.name} logged for Bed ${sortedBeds.join(', ')}';
       });
 '@
-  $src = $src.Replace('  void removeProduct(int id) => setState(() {', $method + "`r`n  void removeProduct(int id) => setState(() {")
+  if ($src -match '\s+void removeProduct\(int id\) => setState\(\(\) \{') {
+    $src = [regex]::Replace($src, '(\s+void removeProduct\(int id\) => setState\(\(\) \{)', $method + '$1', 1)
+  } else {
+    throw 'Could not find removeProduct insertion point for saveFeed.'
+  }
 }
 
 if ($src -notmatch 'final feedingAdvisor = buildFeedingAdvisorReport') {
-  $src = $src.Replace('final sprayAdvisor = buildSprayAdvisorReport(bedCrops: bedCrops, activeRecords: activeRecords, products: products, weather: weather, now: DateTime.now());', "final sprayAdvisor = buildSprayAdvisorReport(bedCrops: bedCrops, activeRecords: activeRecords, products: products, weather: weather, now: DateTime.now());`r`n    final feedingAdvisor = buildFeedingAdvisorReport(bedCrops: bedCrops, feedRecords: feedRecords, weather: weather, now: DateTime.now());")
-  $src = $src.Replace('final pages = [', "final feedingAdvisor = buildFeedingAdvisorReport(bedCrops: bedCrops, feedRecords: feedRecords, weather: weather, now: DateTime.now());`r`n    final pages = [")
+  if ($src -match 'final sprayAdvisor = buildSprayAdvisorReport\([^;]+;') {
+    $src = [regex]::Replace($src, '(final sprayAdvisor = buildSprayAdvisorReport\([^;]+;)', "`$1`r`n    final feedingAdvisor = buildFeedingAdvisorReport(bedCrops: bedCrops, feedRecords: feedRecords, weather: weather, now: DateTime.now());", 1)
+  } else {
+    throw 'Could not find sprayAdvisor insertion point for feedingAdvisor.'
+  }
 }
 
 if ($src -notmatch 'feedingAdvisor: feedingAdvisor') {
@@ -341,7 +349,11 @@ if ($src -notmatch 'required this.feedingAdvisor') {
 }
 
 if ($src -notmatch 'final FeedingAdvisorReport feedingAdvisor;') {
-  $src = $src.Replace('  final SprayAdvisorReport sprayAdvisor;`r`n  final String message;', '  final SprayAdvisorReport sprayAdvisor;`r`n  final FeedingAdvisorReport feedingAdvisor;`r`n  final VoidCallback onLogFeed;`r`n  final String message;')
+  if ($src -match '  final SprayAdvisorReport sprayAdvisor;') {
+    $src = $src.Replace('  final SprayAdvisorReport sprayAdvisor;', "  final SprayAdvisorReport sprayAdvisor;`r`n  final FeedingAdvisorReport feedingAdvisor;`r`n  final VoidCallback onLogFeed;")
+  } else {
+    throw 'Could not find HomeScreen sprayAdvisor field insertion point.'
+  }
 }
 
 if ($src -notmatch 'FeedingAdvisorCard\(report: feedingAdvisor') {
