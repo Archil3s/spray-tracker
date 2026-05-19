@@ -24,8 +24,23 @@ if ($src -notmatch "package:http/http.dart") {
   $src = $src.Replace("import 'package:flutter_svg/flutter_svg.dart';", "import 'package:flutter_svg/flutter_svg.dart';`r`nimport 'package:http/http.dart' as http;")
 }
 
+# Marlborough default uses Blenheim coordinates. New Zealand's IANA timezone remains Pacific/Auckland.
+$latitude = '-41.5134'
+$longitude = '173.9612'
+$regionLabel = 'Marlborough region'
+
+# Repair older Auckland-applied local files.
+$src = $src.Replace("'latitude': '-36.8485'", "'latitude': '$latitude'")
+$src = $src.Replace("'longitude': '174.7633'", "'longitude': '$longitude'")
+$src = $src.Replace('Live weather: Auckland region · Open-Meteo forecast', "Live weather: $regionLabel · Open-Meteo forecast")
+$src = $src.Replace('Applied live weather integration for the Auckland region.', "Applied live weather integration for the $regionLabel.")
+
 if ($src -match 'static const weather = GardenWeatherSnapshot') {
-  $src = $src.Replace("  static const weather = GardenWeatherSnapshot(rainLikelyTonight: true, humidityPercent: 86, windKph: 18, bestSprayWindow: 'tomorrow morning');", "  GardenWeatherSnapshot weather = const GardenWeatherSnapshot(rainLikelyTonight: true, humidityPercent: 86, windKph: 18, bestSprayWindow: 'tomorrow morning');`r`n  String weatherSource = 'Using offline fallback until live weather loads';")
+  $src = $src.Replace("  static const weather = GardenWeatherSnapshot(rainLikelyTonight: true, humidityPercent: 86, windKph: 18, bestSprayWindow: 'tomorrow morning');", "  GardenWeatherSnapshot weather = const GardenWeatherSnapshot(rainLikelyTonight: true, humidityPercent: 86, windKph: 18, bestSprayWindow: 'tomorrow morning');`r`n  String weatherSource = 'Using offline Marlborough fallback until live weather loads';")
+}
+
+if ($src -match "Using offline fallback until live weather loads") {
+  $src = $src.Replace("Using offline fallback until live weather loads", "Using offline Marlborough fallback until live weather loads")
 }
 
 if ($src -notmatch 'Future<void> fetchLiveWeather') {
@@ -34,8 +49,8 @@ if ($src -notmatch 'Future<void> fetchLiveWeather') {
   Future<void> fetchLiveWeather() async {
     try {
       final uri = Uri.https('api.open-meteo.com', '/v1/forecast', {
-        'latitude': '-36.8485',
-        'longitude': '174.7633',
+        'latitude': '-41.5134',
+        'longitude': '173.9612',
         'hourly': 'precipitation_probability,relative_humidity_2m,wind_speed_10m,temperature_2m',
         'forecast_days': '2',
         'timezone': 'Pacific/Auckland',
@@ -68,7 +83,7 @@ if ($src -notmatch 'Future<void> fetchLiveWeather') {
           windKph: maxWind,
           bestSprayWindow: bestWindow,
         );
-        weatherSource = 'Live weather: Auckland region · Open-Meteo forecast';
+        weatherSource = 'Live weather: Marlborough region · Open-Meteo forecast';
       });
     } catch (_) {
       // Keep offline fallback guidance.
@@ -90,5 +105,5 @@ if ($src -match "source: 'Using local garden records \+ forecast placeholder'") 
 $src = $src.Replace("final report = buildGardenTodayReport(bedCrops: bedCrops, activeRecords: activeRecords, weather: weather, now: DateTime.now());", "final report = buildGardenTodayReport(bedCrops: bedCrops, activeRecords: activeRecords, weather: weather, now: DateTime.now(), source: weatherSource);")
 
 Set-Content -Path $mainPath -Value $src -NoNewline
-Write-Host 'Applied live weather integration for the Auckland region.'
+Write-Host "Applied live weather integration for the $regionLabel."
 Write-Host 'Next: flutter pub get; flutter analyze; flutter run'
