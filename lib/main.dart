@@ -56,6 +56,8 @@ BoxDecoration cardDecoration({Color color = C.card, double radius = 22, bool bor
       boxShadow: softShadow,
     );
 
+double clampDouble(double value, double min, double max) => value.clamp(min, max).toDouble();
+
 class GardenBed {
   const GardenBed(this.number, this.rect);
   final int number;
@@ -94,7 +96,7 @@ class SprayTarget {
 }
 
 const sprayTargets = [
-  SprayTarget('pest', 'Pest pressure', 'Insect', 'Insects, mites, chewing damage, webbing, sticky residue, or larvae.', C.red, C.redSoft, CupertinoIcons.ant),
+  SprayTarget('pest', 'Pest pressure', 'Insect', 'Insects, mites, chewing damage, webbing, sticky residue, or larvae.', C.red, C.redSoft, CupertinoIcons.exclamationmark_triangle),
   SprayTarget('fungus', 'Fungal pressure', 'Fungus', 'Mildew, rust, leaf spots, blight risk, or humid disease pressure.', C.blue, C.blueSoft, CupertinoIcons.drop),
   SprayTarget('prevent', 'Preventative', 'Prevent', 'Use before pressure builds, especially before wet or humid weather.', C.forest, C.forestSoft, CupertinoIcons.shield),
   SprayTarget('maintain', 'Maintenance', 'Maintain', 'Plant support, stress recovery, pruning, airflow, and general crop care.', C.purple, C.purpleSoft, CupertinoIcons.leaf_arrow_circlepath),
@@ -143,7 +145,6 @@ extension FirstOrNull<T> on Iterable<T> {
 
 String monthName(int month) => const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][month - 1];
 String shortDate(DateTime d) => '${d.day} ${monthName(d.month)}';
-String fullDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
 
 class FieldbookHome extends StatefulWidget {
   const FieldbookHome({super.key});
@@ -195,7 +196,7 @@ class _FieldbookHomeState extends State<FieldbookHome> {
 
     records = [
       SprayRecord(id: nextRecordId++, beds: const [4], crops: const ['Tomato', 'Chilli'], targetId: 'pest', product: 'Neem Oil', reason: 'Aphids on tomato tips', notes: '', date: ago(1), days: 3),
-      SprayRecord(id: nextRecordId++, beds: const [9, 10], crops: const ['Cucumbers'], targetId: 'fungus', product: 'Copper Hydroxide', reason: 'Powdery mildew risk', notes: '', date: ago(1), days: 7),
+      SprayRecord(id: nextRecordId++, beds: const [9, 10], crops: const ['Cucumber'], targetId: 'fungus', product: 'Copper Hydroxide', reason: 'Powdery mildew risk', notes: '', date: ago(1), days: 7),
       SprayRecord(id: nextRecordId++, beds: const [2], crops: const ['Lettuce', 'Rocket'], targetId: 'prevent', product: 'Neem Oil', reason: 'Preventative spray', notes: '', date: ago(4), days: 3),
       SprayRecord(id: nextRecordId++, beds: const [7], crops: const ['Kale'], targetId: 'pest', product: 'Pyrethrin', reason: 'Caterpillars', notes: '', date: ago(5), days: 3),
     ];
@@ -242,28 +243,20 @@ class _FieldbookHomeState extends State<FieldbookHome> {
   void removeCrop(int bed, VegetableDefinition crop) {
     final next = [...bedCrops[bed] ?? <VegetableDefinition>[]]..removeWhere((c) => c.id == crop.id);
     setState(() {
-      if (next.isEmpty) {
-        bedCrops.remove(bed);
-      } else {
-        bedCrops[bed] = next;
-      }
+      next.isEmpty ? bedCrops.remove(bed) : bedCrops[bed] = next;
       message = '${crop.name} removed from Bed $bed';
     });
   }
 
-  void clearCrops(int bed) {
-    setState(() {
-      bedCrops.remove(bed);
-      message = 'Crops cleared from Bed $bed';
-    });
-  }
+  void clearCrops(int bed) => setState(() {
+        bedCrops.remove(bed);
+        message = 'Crops cleared from Bed $bed';
+      });
 
-  void clearSprays(int bed) {
-    setState(() {
-      records = records.where((r) => !r.beds.contains(bed)).toList();
-      message = 'Spray records cleared from Bed $bed';
-    });
-  }
+  void clearSprays(int bed) => setState(() {
+        records = records.where((r) => !r.beds.contains(bed)).toList();
+        message = 'Spray records cleared from Bed $bed';
+      });
 
   void startSpray({required Set<int> beds, String targetId = 'pest', Set<String>? crops}) {
     final safeBeds = beds.isEmpty ? {selectedBed} : beds;
@@ -308,38 +301,9 @@ class _FieldbookHomeState extends State<FieldbookHome> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      HomeScreen(
-        clearBeds: clearBeds,
-        holdBeds: holdBeds,
-        plantedBeds: plantedBeds,
-        cropPlacements: cropPlacements,
-        records: records,
-        activeRecords: activeRecords,
-        message: message,
-        onPlanSpray: () => startSpray(beds: {selectedBed}),
-        onViewRecords: () => setState(() => tab = 3),
-      ),
-      GardenScreen(
-        selectedBed: selectedBed,
-        bedCrops: bedCrops,
-        records: records,
-        message: message,
-        onSelectBed: (v) => setState(() => selectedBed = v),
-        onAddCrop: addCrop,
-        onRemoveCrop: removeCrop,
-        onClearCrops: clearCrops,
-        onClearSprays: clearSprays,
-        onStartSpray: (bed, target, crops) => startSpray(beds: {bed}, targetId: target, crops: crops),
-      ),
-      SprayLogScreen(
-        key: ValueKey('${sprayBeds.join(',')}-${sprayCrops.join(',')}-$sprayTarget-${records.length}'),
-        initialBeds: sprayBeds,
-        initialCrops: sprayCrops,
-        initialTarget: sprayTarget,
-        bedCrops: bedCrops,
-        products: products,
-        onSave: saveSpray,
-      ),
+      HomeScreen(clearBeds: clearBeds, holdBeds: holdBeds, plantedBeds: plantedBeds, cropPlacements: cropPlacements, records: records, activeRecords: activeRecords, message: message, onPlanSpray: () => startSpray(beds: {selectedBed}), onViewRecords: () => setState(() => tab = 3)),
+      GardenScreen(selectedBed: selectedBed, bedCrops: bedCrops, records: records, message: message, onSelectBed: (v) => setState(() => selectedBed = v), onAddCrop: addCrop, onRemoveCrop: removeCrop, onClearCrops: clearCrops, onClearSprays: clearSprays, onStartSpray: (bed, target, crops) => startSpray(beds: {bed}, targetId: target, crops: crops)),
+      SprayLogScreen(key: ValueKey('${sprayBeds.join(',')}-${sprayCrops.join(',')}-$sprayTarget-${records.length}'), initialBeds: sprayBeds, initialCrops: sprayCrops, initialTarget: sprayTarget, bedCrops: bedCrops, products: products, onSave: saveSpray),
       RecordsScreen(records: records, message: message, onDelete: deleteRecord, onClear: () => setState(() { records.clear(); message = 'All records cleared'; })),
       ProductsScreen(products: products, message: message, onAdd: addProduct, onDelete: removeProduct),
     ];
@@ -374,8 +338,10 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final next = activeRecords.firstOrNull;
     final recent = records.where((r) => next == null || r.id != next.id).take(3).toList();
+    final width = MediaQuery.of(context).size.width;
+    final horizontal = width < 360 ? 14.0 : 20.0;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 26),
+      padding: EdgeInsets.fromLTRB(horizontal, 18, horizontal, 26),
       children: [
         const FieldbookHeader(),
         const SizedBox(height: 18),
@@ -386,7 +352,7 @@ class HomeScreen extends StatelessWidget {
         const SizedBox(height: 10),
         if (next == null) const EmptyCard('No active withholding periods.') else SafeHarvestCard(record: next),
         const SizedBox(height: 22),
-        SectionTitle('Recent activity', trailing: CupertinoButton(padding: EdgeInsets.zero, minSize: 24, onPressed: onViewRecords, child: const Text('View all ›', style: TextStyle(color: C.forest, fontWeight: FontWeight.w800, fontSize: 13)))),
+        SectionTitle('Recent activity', trailing: CupertinoButton(padding: EdgeInsets.zero, minSize: 30, onPressed: onViewRecords, child: const Text('View all ›', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: C.forest, fontWeight: FontWeight.w800, fontSize: 13)))),
         const SizedBox(height: 10),
         if (recent.isEmpty) const EmptyCard('No spray records yet.') else ...recent.map((r) => RecordCard(record: r)),
       ],
@@ -398,28 +364,26 @@ class FieldbookHeader extends StatelessWidget {
   const FieldbookHeader({super.key});
 
   @override
-  Widget build(BuildContext context) => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Fieldbook', style: TextStyle(fontSize: 44, height: .98, fontWeight: FontWeight.w900, letterSpacing: -1.8, color: C.forest)),
-                SizedBox(height: 7),
-                Text('Your garden, protected.', style: TextStyle(fontSize: 16, color: C.muted, fontWeight: FontWeight.w700)),
-              ],
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
+        final compact = constraints.maxWidth < 340;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FittedBox(alignment: Alignment.centerLeft, fit: BoxFit.scaleDown, child: Text('Fieldbook', style: TextStyle(fontSize: compact ? 39 : 44, height: .98, fontWeight: FontWeight.w900, letterSpacing: -1.8, color: C.forest))),
+                  const SizedBox(height: 7),
+                  const Text('Your garden, protected.', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, color: C.muted, fontWeight: FontWeight.w700)),
+                ],
+              ),
             ),
-          ),
-          Container(
-            width: 44,
-            height: 44,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(color: C.forestSoft, shape: BoxShape.circle, border: Border.all(color: C.line)),
-            child: const Icon(CupertinoIcons.leaf_arrow_circlepath, color: C.forest, size: 22),
-          ),
-        ],
-      );
+            const SizedBox(width: 10),
+            Container(width: 44, height: 44, alignment: Alignment.center, decoration: BoxDecoration(color: C.forestSoft, shape: BoxShape.circle, border: Border.all(color: C.line)), child: const Icon(CupertinoIcons.leaf_arrow_circlepath, color: C.forest, size: 22)),
+          ],
+        );
+      });
 }
 
 class StatusHeroCard extends StatelessWidget {
@@ -431,70 +395,57 @@ class StatusHeroCard extends StatelessWidget {
   final VoidCallback onPlanSpray;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [C.forest, C.forestDark], begin: Alignment.topLeft, end: Alignment.bottomRight),
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [BoxShadow(color: C.forest.withOpacity(.22), blurRadius: 28, offset: const Offset(0, 13))],
-        ),
-        child: Stack(
-          children: [
-            Positioned(right: -22, top: -8, child: Icon(CupertinoIcons.leaf_arrow_circlepath, size: 142, color: CupertinoColors.white.withOpacity(.12))),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Today', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFFE1EFE5))),
-                const SizedBox(height: 6),
-                const Text('Spray status', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900, color: CupertinoColors.white, letterSpacing: -.3)),
-                const SizedBox(height: 22),
-                IntrinsicHeight(
-                  child: Row(
-                    children: [
-                      Expanded(child: HeroMetric(label: 'CLEAR BEDS', value: '$clearBeds', labelColor: const Color(0xFFD7E7DA), valueColor: CupertinoColors.white)),
-                      Container(width: 1, margin: const EdgeInsets.symmetric(horizontal: 18), color: CupertinoColors.white.withOpacity(.18)),
-                      Expanded(child: HeroMetric(label: 'ON HOLD', value: '$holdBeds', labelColor: C.amberSoft, valueColor: const Color(0xFFFFC774))),
-                    ],
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
+        final compact = constraints.maxWidth < 340;
+        return Container(
+          padding: EdgeInsets.all(compact ? 18 : 22),
+          decoration: BoxDecoration(gradient: const LinearGradient(colors: [C.forest, C.forestDark], begin: Alignment.topLeft, end: Alignment.bottomRight), borderRadius: BorderRadius.circular(28), boxShadow: [BoxShadow(color: C.forest.withOpacity(.22), blurRadius: 28, offset: const Offset(0, 13))]),
+          child: Stack(
+            children: [
+              Positioned(right: -26, top: -8, child: Icon(CupertinoIcons.leaf_arrow_circlepath, size: compact ? 116 : 142, color: CupertinoColors.white.withOpacity(.12))),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Today', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFFE1EFE5))),
+                  const SizedBox(height: 6),
+                  const Text('Spray status', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900, color: CupertinoColors.white, letterSpacing: -.3)),
+                  const SizedBox(height: 22),
+                  IntrinsicHeight(
+                    child: Row(
+                      children: [
+                        Expanded(child: HeroMetric(label: 'CLEAR BEDS', value: '$clearBeds', labelColor: const Color(0xFFD7E7DA), valueColor: CupertinoColors.white, compact: compact)),
+                        Container(width: 1, margin: EdgeInsets.symmetric(horizontal: compact ? 12 : 18), color: CupertinoColors.white.withOpacity(.18)),
+                        Expanded(child: HeroMetric(label: 'ON HOLD', value: '$holdBeds', labelColor: C.amberSoft, valueColor: const Color(0xFFFFC774), compact: compact)),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                Text('$plantedBeds beds planted · $cropPlacements crop placements', style: TextStyle(color: CupertinoColors.white.withOpacity(.78), fontWeight: FontWeight.w700)),
-                const SizedBox(height: 18),
-                CupertinoButton(
-                  color: C.card,
-                  borderRadius: BorderRadius.circular(17),
-                  padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 16),
-                  onPressed: onPlanSpray,
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(CupertinoIcons.drop, color: C.forest, size: 18),
-                      SizedBox(width: 8),
-                      Text('Plan a spray', style: TextStyle(color: C.forest, fontWeight: FontWeight.w900, fontSize: 15)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
+                  const SizedBox(height: 20),
+                  Text('$plantedBeds beds planted · $cropPlacements crop placements', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: CupertinoColors.white.withOpacity(.78), fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 18),
+                  PrimaryButton(label: 'Plan a spray', icon: CupertinoIcons.drop, inverted: true, onPressed: onPlanSpray),
+                ],
+              ),
+            ],
+          ),
+        );
+      });
 }
 
 class HeroMetric extends StatelessWidget {
-  const HeroMetric({required this.label, required this.value, required this.labelColor, required this.valueColor, super.key});
+  const HeroMetric({required this.label, required this.value, required this.labelColor, required this.valueColor, this.compact = false, super.key});
   final String label;
   final String value;
   final Color labelColor;
   final Color valueColor;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(color: labelColor, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: .8)),
+          FittedBox(alignment: Alignment.centerLeft, fit: BoxFit.scaleDown, child: Text(label, style: TextStyle(color: labelColor, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: .8))),
           const SizedBox(height: 6),
-          Text(value, style: TextStyle(color: valueColor, fontSize: 40, height: .95, fontWeight: FontWeight.w900)),
+          FittedBox(alignment: Alignment.centerLeft, fit: BoxFit.scaleDown, child: Text(value, style: TextStyle(color: valueColor, fontSize: compact ? 35 : 40, height: .95, fontWeight: FontWeight.w900))),
         ],
       );
 }
@@ -511,19 +462,10 @@ class SafeHarvestCard extends StatelessWidget {
       decoration: cardDecoration(radius: 21),
       child: Row(
         children: [
-          Container(width: 52, height: 52, alignment: Alignment.center, decoration: BoxDecoration(color: C.forestSoft, borderRadius: BorderRadius.circular(16)), child: CropIcon(cropIconForRecord(record), size: 36)),
+          Flexible(flex: 0, child: Container(width: 52, height: 52, alignment: Alignment.center, decoration: BoxDecoration(color: C.forestSoft, borderRadius: BorderRadius.circular(16)), child: CropIcon(cropIconForRecord(record), size: 36))),
           const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Bed ${record.beds.first} · ${record.crops.join(', ')}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.ink, fontWeight: FontWeight.w900, fontSize: 15)),
-                const SizedBox(height: 4),
-                Text('${record.product} · sprayed ${shortDate(record.date)} · safe ${shortDate(record.safeDate)}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.muted, fontSize: 12, fontWeight: FontWeight.w700)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
+          Expanded(child: RecordText(record: record, showTarget: false, maxDetailLines: 2)),
+          const SizedBox(width: 8),
           StatusPill(hold ? 'HOLD' : 'SAFE', hold: hold),
         ],
       ),
@@ -548,18 +490,7 @@ class RecordCard extends StatelessWidget {
         children: [
           TargetIconTile(target: target),
           const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Bed ${record.beds.first} · ${target.short}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-                const SizedBox(height: 2),
-                Text(record.crops.join(', '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.ink, fontSize: 13, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 3),
-                Text('${record.product} · ${shortDate(record.date)} · safe ${shortDate(record.safeDate)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.muted, fontSize: 12, fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ),
+          Expanded(child: RecordText(record: record, showTarget: true)),
           const SizedBox(width: 8),
           StatusPill(hold ? 'HOLD' : 'SAFE', hold: hold),
           if (onDelete != null) CupertinoButton(padding: EdgeInsets.zero, minSize: 34, onPressed: onDelete, child: const Text('×', style: TextStyle(color: C.red, fontSize: 20, fontWeight: FontWeight.w900))),
@@ -569,18 +500,35 @@ class RecordCard extends StatelessWidget {
   }
 }
 
+class RecordText extends StatelessWidget {
+  const RecordText({required this.record, required this.showTarget, this.maxDetailLines = 1, super.key});
+  final SprayRecord record;
+  final bool showTarget;
+  final int maxDetailLines;
+
+  @override
+  Widget build(BuildContext context) {
+    final target = targetById(record.targetId);
+    final title = showTarget ? 'Bed ${record.beds.join(', ')} · ${target.short}' : 'Bed ${record.beds.join(', ')} · ${record.crops.join(', ')}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.ink, fontWeight: FontWeight.w900, fontSize: 15)),
+        const SizedBox(height: 3),
+        if (showTarget) Text(record.crops.join(', '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.ink, fontSize: 13, fontWeight: FontWeight.w700)),
+        if (showTarget) const SizedBox(height: 3),
+        Text('${record.product} · sprayed ${shortDate(record.date)} · safe ${shortDate(record.safeDate)}', maxLines: maxDetailLines, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.muted, fontSize: 12, fontWeight: FontWeight.w700)),
+      ],
+    );
+  }
+}
+
 class TargetIconTile extends StatelessWidget {
   const TargetIconTile({required this.target, super.key});
   final SprayTarget target;
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: 46,
-        height: 46,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(color: target.softColor, borderRadius: BorderRadius.circular(15)),
-        child: Icon(target.icon, color: target.color, size: 22),
-      );
+  Widget build(BuildContext context) => Container(width: 46, height: 46, alignment: Alignment.center, decoration: BoxDecoration(color: target.softColor, borderRadius: BorderRadius.circular(15)), child: Icon(target.icon, color: target.color, size: 22));
 }
 
 class StatusPill extends StatelessWidget {
@@ -589,10 +537,9 @@ class StatusPill extends StatelessWidget {
   final bool hold;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(color: hold ? C.amberSoft : C.forestSoft, borderRadius: BorderRadius.circular(999)),
-        child: Text(label, style: TextStyle(color: hold ? C.amber : C.forest, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .5)),
+  Widget build(BuildContext context) => FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: hold ? C.amberSoft : C.forestSoft, borderRadius: BorderRadius.circular(999)), child: Text(label, maxLines: 1, style: TextStyle(color: hold ? C.amber : C.forest, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .5))),
       );
 }
 
@@ -640,32 +587,17 @@ class FieldbookBottomNav extends StatelessWidget {
                   children: [
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 160),
-                      width: center ? 46 : null,
-                      height: center ? 46 : null,
-                      padding: center ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      width: center ? 46 : 38,
+                      height: center ? 46 : 34,
                       alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: selected ? C.forest : center ? C.card : CupertinoColors.transparent,
-                        borderRadius: BorderRadius.circular(center ? 999 : 18),
-                        border: center ? Border.all(color: C.line) : null,
-                        boxShadow: center ? softShadow : null,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(items[i].icon, size: 18, color: selected ? CupertinoColors.white : C.muted),
-                          if (selected && !center) ...[
-                            const SizedBox(width: 5),
-                            Text(items[i].label, style: const TextStyle(color: CupertinoColors.white, fontSize: 11, fontWeight: FontWeight.w900)),
-                          ],
-                        ],
-                      ),
+                      decoration: BoxDecoration(color: selected ? C.forest : center ? C.card : CupertinoColors.transparent, borderRadius: BorderRadius.circular(999), border: center ? Border.all(color: C.line) : null, boxShadow: center ? softShadow : null),
+                      child: Icon(items[i].icon, size: center ? 20 : 18, color: selected ? CupertinoColors.white : C.muted),
                     ),
-                    if (!selected || center) ...[
-                      const SizedBox(height: 3),
-                      Text(items[i].label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: selected ? C.forest : C.muted, fontSize: 9.5, fontWeight: FontWeight.w800)),
-                    ],
+                    const SizedBox(height: 3),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: FittedBox(fit: BoxFit.scaleDown, child: Text(items[i].label, maxLines: 1, style: TextStyle(color: selected ? C.forest : C.muted, fontSize: 9.5, fontWeight: FontWeight.w800))),
+                    ),
                   ],
                 ),
               ),
@@ -702,13 +634,14 @@ class GardenScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final crops = bedCrops[selectedBed] ?? const <VegetableDefinition>[];
     final hold = bedOnHold(selectedBed);
+    final mapHeight = clampDouble(MediaQuery.of(context).size.height * .50, 330, 500);
     return AppPage(title: 'Garden', subtitle: 'Tap a bed to view crops and actions.', message: message, children: [
-      Panel(padding: const EdgeInsets.all(12), child: SizedBox(height: 500, child: GardenMap(selectedBed: selectedBed, bedCrops: bedCrops, isHold: bedOnHold, onTap: onSelectBed))),
+      Panel(padding: const EdgeInsets.all(12), child: SizedBox(height: mapHeight, child: GardenMap(selectedBed: selectedBed, bedCrops: bedCrops, isHold: bedOnHold, onTap: onSelectBed))),
       const SizedBox(height: 14),
       Panel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Expanded(child: Text('Bed $selectedBed', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900))), StatusPill(hold ? 'HOLD' : 'CLEAR', hold: hold)]),
+        Row(children: [Expanded(child: Text('Bed $selectedBed', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900))), const SizedBox(width: 8), StatusPill(hold ? 'HOLD' : 'CLEAR', hold: hold)]),
         const SizedBox(height: 5),
-        Text(crops.isEmpty ? 'No crops assigned' : crops.map((c) => c.name).join(' · '), style: const TextStyle(color: C.muted, fontWeight: FontWeight.w700)),
+        Text(crops.isEmpty ? 'No crops assigned' : crops.map((c) => c.name).join(' · '), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.muted, fontWeight: FontWeight.w700)),
         const SizedBox(height: 14),
         if (crops.isEmpty) const EmptyInline('Add crops to unlock crop-specific spray guidance.') else CropWrap(crops: crops, onRemove: (crop) => onRemoveCrop(selectedBed, crop)),
         const SizedBox(height: 16),
@@ -751,13 +684,14 @@ class BedButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => CupertinoButton(
         padding: EdgeInsets.zero,
+        minSize: 0,
         onPressed: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
-          decoration: BoxDecoration(color: hold ? C.amberSoft : crops.isEmpty ? C.card : C.forestSoft, borderRadius: BorderRadius.circular(10), border: Border.all(color: selected ? C.forest : C.soil, width: selected ? 2.6 : 1.3)),
+          decoration: BoxDecoration(color: hold ? C.amberSoft : crops.isEmpty ? C.card : C.forestSoft, borderRadius: BorderRadius.circular(10), border: Border.all(color: selected ? C.forest : C.soil, width: selected ? 2.4 : 1.2)),
           child: Stack(clipBehavior: Clip.none, children: [
-            Center(child: Text('$number', style: TextStyle(fontWeight: FontWeight.w900, color: selected ? C.forest : C.ink, fontSize: 12))),
-            if (crops.isNotEmpty) Positioned(top: -12, right: -12, child: IconCluster(crops: crops)),
+            Center(child: FittedBox(fit: BoxFit.scaleDown, child: Text('$number', style: TextStyle(fontWeight: FontWeight.w900, color: selected ? C.forest : C.ink, fontSize: 12)))),
+            if (crops.isNotEmpty) Positioned(top: -10, right: -10, child: IconCluster(crops: crops)),
           ]),
         ),
       );
@@ -769,12 +703,12 @@ class IconCluster extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visible = crops.take(4).toList();
+    final visible = crops.take(3).toList();
     return Container(
-      constraints: const BoxConstraints(maxWidth: 118),
+      constraints: const BoxConstraints(maxWidth: 96),
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(999), border: Border.all(color: C.line), boxShadow: softShadow),
-      child: Wrap(spacing: 2, runSpacing: 2, children: [...visible.map((c) => CropIcon(c.iconPath, size: 22)), if (crops.length > 4) CountDot(crops.length - 4)]),
+      child: Wrap(spacing: 2, runSpacing: 2, children: [...visible.map((c) => CropIcon(c.iconPath, size: 20)), if (crops.length > 3) CountDot(crops.length - 3)]),
     );
   }
 }
@@ -795,9 +729,10 @@ class CropChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(maxWidth: 260),
         padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
         decoration: BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(999), border: Border.all(color: C.line)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [CropIcon(crop.iconPath, size: 22), const SizedBox(width: 7), Text(crop.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)), if (onRemove != null) CupertinoButton(padding: EdgeInsets.zero, minSize: 24, onPressed: onRemove, child: const Text('×', style: TextStyle(fontSize: 18, color: C.muted)))]),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [CropIcon(crop.iconPath, size: 22), const SizedBox(width: 7), Flexible(child: Text(crop.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13))), if (onRemove != null) CupertinoButton(padding: EdgeInsets.zero, minSize: 24, onPressed: onRemove, child: const Text('×', style: TextStyle(fontSize: 18, color: C.muted)))]),
       );
 }
 
@@ -856,7 +791,22 @@ class CropOption extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onTap, child: Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12), decoration: cardDecoration(), child: Row(children: [Container(width: 48, height: 48, alignment: Alignment.center, decoration: BoxDecoration(color: C.soft, borderRadius: BorderRadius.circular(14)), child: CropIcon(crop.iconPath, size: 38)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(crop.name, style: const TextStyle(fontWeight: FontWeight.w900)), Text('Pest: ${crop.commonPests.take(3).join(', ')}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.muted, fontSize: 12)), Text('Disease: ${crop.commonDiseases.take(3).join(', ')}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.muted, fontSize: 12))])), StatusPill(added ? 'ADDED' : 'ADD', hold: false)])));
+  Widget build(BuildContext context) => CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: onTap,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: cardDecoration(),
+          child: Row(children: [
+            Container(width: 48, height: 48, alignment: Alignment.center, decoration: BoxDecoration(color: C.soft, borderRadius: BorderRadius.circular(14)), child: CropIcon(crop.iconPath, size: 38)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(crop.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900)), Text('Pest: ${crop.commonPests.take(3).join(', ')}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.muted, fontSize: 12)), Text('Disease: ${crop.commonDiseases.take(3).join(', ')}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.muted, fontSize: 12))])),
+            const SizedBox(width: 8),
+            StatusPill(added ? 'ADDED' : 'ADD', hold: false),
+          ]),
+        ),
+      );
 }
 
 void showSprayPlan(BuildContext context, int bed, List<VegetableDefinition> crops, void Function(int bed, String target, Set<String> crops) onStart) {
@@ -893,7 +843,7 @@ class _SprayPlanSheetState extends State<SprayPlanSheet> {
       const SizedBox(height: 8),
       TargetGrid(selected: targetId, onSelect: (id) => setState(() => targetId = id)),
       const SizedBox(height: 12),
-      Panel(color: target.softColor, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(target.title, style: TextStyle(color: target.color, fontWeight: FontWeight.w900)), const SizedBox(height: 5), Text(target.description, style: const TextStyle(fontWeight: FontWeight.w700))])),
+      Panel(color: target.softColor, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(target.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: target.color, fontWeight: FontWeight.w900)), const SizedBox(height: 5), Text(target.description, style: const TextStyle(fontWeight: FontWeight.w700))])),
       const SizedBox(height: 14),
       const SectionTitle('Suggested product'),
       const SizedBox(height: 8),
@@ -1001,7 +951,7 @@ class CropSelectChip extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onTap, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: selected ? C.forest : C.card, borderRadius: BorderRadius.circular(999), border: Border.all(color: selected ? C.forest : C.line)), child: Row(mainAxisSize: MainAxisSize.min, children: [CropIcon(crop.iconPath, size: 20), const SizedBox(width: 6), Text(crop.name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: selected ? CupertinoColors.white : C.ink))])));
+  Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onTap, child: Container(constraints: const BoxConstraints(maxWidth: 250), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: selected ? C.forest : C.card, borderRadius: BorderRadius.circular(999), border: Border.all(color: selected ? C.forest : C.line)), child: Row(mainAxisSize: MainAxisSize.min, children: [CropIcon(crop.iconPath, size: 20), const SizedBox(width: 6), Flexible(child: Text(crop.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: selected ? CupertinoColors.white : C.ink)))])));
 }
 
 class TargetGrid extends StatelessWidget {
@@ -1010,7 +960,10 @@ class TargetGrid extends StatelessWidget {
   final ValueChanged<String> onSelect;
 
   @override
-  Widget build(BuildContext context) => GridView.count(crossAxisCount: 4, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisSpacing: 8, childAspectRatio: .92, children: sprayTargets.map((t) => TargetButton(target: t, selected: selected == t.id, onTap: () => onSelect(t.id))).toList());
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
+        final columns = constraints.maxWidth < 360 ? 2 : 4;
+        return GridView.count(crossAxisCount: columns, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisSpacing: 8, mainAxisSpacing: 8, childAspectRatio: columns == 2 ? 2.35 : .98, children: sprayTargets.map((t) => TargetButton(target: t, selected: selected == t.id, onTap: () => onSelect(t.id))).toList());
+      });
 }
 
 class TargetButton extends StatelessWidget {
@@ -1020,7 +973,16 @@ class TargetButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onTap, child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: selected ? target.softColor : C.card, borderRadius: BorderRadius.circular(16), border: Border.all(color: selected ? target.color : C.line, width: selected ? 1.8 : 1)), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(target.icon, color: target.color, size: 23), const SizedBox(height: 5), Text(target.short, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900))])));
+  Widget build(BuildContext context) => CupertinoButton(
+        padding: EdgeInsets.zero,
+        minSize: 0,
+        onPressed: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          decoration: BoxDecoration(color: selected ? target.softColor : C.card, borderRadius: BorderRadius.circular(16), border: Border.all(color: selected ? target.color : C.line, width: selected ? 1.8 : 1)),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [Icon(target.icon, color: target.color, size: 22), const SizedBox(height: 5), Flexible(child: FittedBox(fit: BoxFit.scaleDown, child: Text(target.short, maxLines: 1, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900))))]),
+        ),
+      );
 }
 
 class ProductChoice extends StatelessWidget {
@@ -1031,7 +993,21 @@ class ProductChoice extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onTap, child: Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: selected ? C.forestSoft : C.card, borderRadius: BorderRadius.circular(16), border: Border.all(color: selected ? C.forest : C.line)), child: Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(product.name, style: const TextStyle(fontWeight: FontWeight.w900)), Text('${product.type} · ${product.days} day withholding', style: const TextStyle(color: C.muted, fontSize: 12, fontWeight: FontWeight.w700))])), if (suggested) const StatusPill('MATCH', hold: false), const SizedBox(width: 8), Text(selected ? '✓' : '○', style: TextStyle(color: selected ? C.forest : C.muted, fontSize: 22, fontWeight: FontWeight.w900))])));
+  Widget build(BuildContext context) => CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: onTap,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: selected ? C.forestSoft : C.card, borderRadius: BorderRadius.circular(16), border: Border.all(color: selected ? C.forest : C.line)),
+          child: Row(children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900)), Text('${product.type} · ${product.days} day withholding', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.muted, fontSize: 12, fontWeight: FontWeight.w700))])),
+            if (suggested) ...[const SizedBox(width: 8), const StatusPill('MATCH', hold: false)],
+            const SizedBox(width: 8),
+            Text(selected ? '✓' : '○', style: TextStyle(color: selected ? C.forest : C.muted, fontSize: 22, fontWeight: FontWeight.w900)),
+          ]),
+        ),
+      );
 }
 
 class RecordsScreen extends StatelessWidget {
@@ -1042,7 +1018,7 @@ class RecordsScreen extends StatelessWidget {
   final VoidCallback onClear;
 
   @override
-  Widget build(BuildContext context) => AppPage(title: 'Records', subtitle: 'All spray records.', message: message, trailing: records.isEmpty ? null : CupertinoButton(padding: EdgeInsets.zero, minSize: 32, onPressed: onClear, child: const Text('Clear all', style: TextStyle(color: C.red, fontWeight: FontWeight.w900))), children: [if (records.isEmpty) const EmptyCard('No spray records yet.') else ...records.map((r) => RecordCard(record: r, onDelete: () => onDelete(r.id)))]);
+  Widget build(BuildContext context) => AppPage(title: 'Records', subtitle: 'All spray records.', message: message, trailing: records.isEmpty ? null : CupertinoButton(padding: EdgeInsets.zero, minSize: 32, onPressed: onClear, child: const Text('Clear all', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: C.red, fontWeight: FontWeight.w900))), children: [if (records.isEmpty) const EmptyCard('No spray records yet.') else ...records.map((r) => RecordCard(record: r, onDelete: () => onDelete(r.id)))]);
 }
 
 class ProductsScreen extends StatelessWidget {
@@ -1069,7 +1045,16 @@ class ProductTile extends StatelessWidget {
   final VoidCallback onDelete;
 
   @override
-  Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14), decoration: cardDecoration(), child: Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(product.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)), Text(product.type, style: const TextStyle(color: C.muted, fontWeight: FontWeight.w700)), Text('${product.days} day withholding · ${product.targets.map((id) => targetById(id).short).join(', ')}', style: const TextStyle(color: C.muted, fontSize: 12))])), CupertinoButton(padding: EdgeInsets.zero, minSize: 34, onPressed: onDelete, child: const Text('Delete', style: TextStyle(color: C.red, fontWeight: FontWeight.w900, fontSize: 12)))]));
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: cardDecoration(),
+        child: Row(children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)), Text(product.type, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.muted, fontWeight: FontWeight.w700)), Text('${product.days} day withholding · ${product.targets.map((id) => targetById(id).short).join(', ')}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.muted, fontSize: 12))])),
+          const SizedBox(width: 8),
+          CupertinoButton(padding: EdgeInsets.zero, minSize: 34, onPressed: onDelete, child: const Text('Delete', maxLines: 1, style: TextStyle(color: C.red, fontWeight: FontWeight.w900, fontSize: 12))),
+        ]),
+      );
 }
 
 class AppPage extends StatelessWidget {
@@ -1081,15 +1066,19 @@ class AppPage extends StatelessWidget {
   final Widget? trailing;
 
   @override
-  Widget build(BuildContext context) => ListView(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 26),
-        children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, letterSpacing: -1.1, color: C.forest)), const SizedBox(height: 4), Text(subtitle, style: const TextStyle(fontSize: 14, color: C.muted, fontWeight: FontWeight.w700))])), if (trailing != null) trailing!]),
-          const SizedBox(height: 18),
-          if (message.isNotEmpty) ...[MessageBanner(message), const SizedBox(height: 12)],
-          ...children,
-        ],
-      );
+  Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final horizontal = width < 360 ? 14.0 : 20.0;
+    return ListView(
+      padding: EdgeInsets.fromLTRB(horizontal, 18, horizontal, 26),
+      children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [FittedBox(alignment: Alignment.centerLeft, fit: BoxFit.scaleDown, child: Text(title, style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, letterSpacing: -1.1, color: C.forest))), const SizedBox(height: 4), Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, color: C.muted, fontWeight: FontWeight.w700))])), if (trailing != null) ...[const SizedBox(width: 8), Flexible(flex: 0, child: trailing!)] ]),
+        const SizedBox(height: 18),
+        if (message.isNotEmpty) ...[MessageBanner(message), const SizedBox(height: 12)],
+        ...children,
+      ],
+    );
+  }
 }
 
 class MessageBanner extends StatelessWidget {
@@ -1097,7 +1086,7 @@ class MessageBanner extends StatelessWidget {
   final String message;
 
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: C.forestSoft, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.line)), child: Text(message, style: const TextStyle(color: C.forest, fontWeight: FontWeight.w900)));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: C.forestSoft, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.line)), child: Text(message, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.forest, fontWeight: FontWeight.w900)));
 }
 
 class Sheet extends StatelessWidget {
@@ -1112,7 +1101,7 @@ class SheetHeader extends StatelessWidget {
   final String title;
   final String subtitle;
   @override
-  Widget build(BuildContext context) => Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900)), Text(subtitle, style: const TextStyle(color: C.muted, fontWeight: FontWeight.w800))])), CupertinoButton(padding: EdgeInsets.zero, onPressed: () => Navigator.pop(context), child: const Text('×', style: TextStyle(fontSize: 28, color: C.muted)))]);
+  Widget build(BuildContext context) => Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900)), Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.muted, fontWeight: FontWeight.w800))])), CupertinoButton(padding: EdgeInsets.zero, onPressed: () => Navigator.pop(context), child: const Text('×', style: TextStyle(fontSize: 28, color: C.muted)))]);
 }
 
 class Panel extends StatelessWidget {
@@ -1131,12 +1120,7 @@ class SectionTitle extends StatelessWidget {
   final bool large;
 
   @override
-  Widget build(BuildContext context) => Row(
-        children: [
-          Expanded(child: Text(text, style: TextStyle(fontSize: large ? 23 : 17, fontWeight: FontWeight.w900, color: C.forest, letterSpacing: large ? -.3 : 0))),
-          if (trailing != null) trailing!,
-        ],
-      );
+  Widget build(BuildContext context) => Row(children: [Expanded(child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: large ? 23 : 17, fontWeight: FontWeight.w900, color: C.forest, letterSpacing: large ? -.3 : 0))), if (trailing != null) ...[const SizedBox(width: 8), Flexible(flex: 0, child: trailing!)] ]);
 }
 
 class EmptyCard extends StatelessWidget {
@@ -1154,11 +1138,21 @@ class EmptyInline extends StatelessWidget {
 }
 
 class PrimaryButton extends StatelessWidget {
-  const PrimaryButton({required this.label, required this.onPressed, super.key});
+  const PrimaryButton({required this.label, required this.onPressed, this.icon, this.inverted = false, super.key});
   final String label;
   final VoidCallback? onPressed;
+  final IconData? icon;
+  final bool inverted;
+
   @override
-  Widget build(BuildContext context) => CupertinoButton(color: C.forest, disabledColor: C.line, borderRadius: BorderRadius.circular(16), padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14), onPressed: onPressed, child: Text(label, style: const TextStyle(color: CupertinoColors.white, fontWeight: FontWeight.w900)));
+  Widget build(BuildContext context) => CupertinoButton(
+        color: inverted ? C.card : C.forest,
+        disabledColor: C.line,
+        borderRadius: BorderRadius.circular(16),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+        onPressed: onPressed,
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [if (icon != null) ...[Icon(icon, color: inverted ? C.forest : CupertinoColors.white, size: 18), const SizedBox(width: 8)], Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: inverted ? C.forest : CupertinoColors.white, fontWeight: FontWeight.w900)))]),
+      );
 }
 
 class SecondaryButton extends StatelessWidget {
@@ -1166,7 +1160,7 @@ class SecondaryButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
   @override
-  Widget build(BuildContext context) => CupertinoButton(color: C.forestSoft, disabledColor: C.soft, borderRadius: BorderRadius.circular(16), padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14), onPressed: onPressed, child: Text(label, style: TextStyle(color: onPressed == null ? C.muted : C.forest, fontWeight: FontWeight.w900)));
+  Widget build(BuildContext context) => CupertinoButton(color: C.forestSoft, disabledColor: C.soft, borderRadius: BorderRadius.circular(16), padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14), onPressed: onPressed, child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: onPressed == null ? C.muted : C.forest, fontWeight: FontWeight.w900)));
 }
 
 class DangerButton extends StatelessWidget {
@@ -1174,7 +1168,7 @@ class DangerButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
   @override
-  Widget build(BuildContext context) => CupertinoButton(color: C.redSoft, disabledColor: C.soft, borderRadius: BorderRadius.circular(16), padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14), onPressed: onPressed, child: Text(label, style: TextStyle(color: onPressed == null ? C.muted : C.red, fontWeight: FontWeight.w900)));
+  Widget build(BuildContext context) => CupertinoButton(color: C.redSoft, disabledColor: C.soft, borderRadius: BorderRadius.circular(16), padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14), onPressed: onPressed, child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: onPressed == null ? C.muted : C.red, fontWeight: FontWeight.w900)));
 }
 
 class NumberChip extends StatelessWidget {
@@ -1183,7 +1177,7 @@ class NumberChip extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onTap, child: Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10), decoration: BoxDecoration(color: selected ? C.forest : C.card, borderRadius: BorderRadius.circular(12), border: Border.all(color: selected ? C.forest : C.line)), child: Text(label, style: TextStyle(color: selected ? CupertinoColors.white : C.ink, fontWeight: FontWeight.w900, fontSize: 13))));
+  Widget build(BuildContext context) => CupertinoButton(padding: EdgeInsets.zero, onPressed: onTap, child: Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10), decoration: BoxDecoration(color: selected ? C.forest : C.card, borderRadius: BorderRadius.circular(12), border: Border.all(color: selected ? C.forest : C.line)), child: Text(label, maxLines: 1, style: TextStyle(color: selected ? CupertinoColors.white : C.ink, fontWeight: FontWeight.w900, fontSize: 13))));
 }
 
 class CountDot extends StatelessWidget {
@@ -1209,7 +1203,7 @@ class Stepper extends StatelessWidget {
   final VoidCallback? minus;
   final VoidCallback plus;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: C.soft, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.line)), child: Row(children: [Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w900))), SmallButton('-', minus), Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Text('$value', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900))), SmallButton('+', plus)]));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: C.soft, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.line)), child: Row(children: [Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900))), SmallButton('-', minus), Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: Text('$value', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900))), SmallButton('+', plus)]));
 }
 
 class SmallButton extends StatelessWidget {
