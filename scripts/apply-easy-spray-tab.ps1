@@ -207,8 +207,14 @@ if ($src.Contains($oldCtor)) {
   $src = $src.Replace($oldCtor, $newCtor)
 }
 
+# Add fields only inside SprayLogScreen, not ProductsScreen.
 if ($src -notmatch 'final List<SprayRecord> activeRecords;') {
-  $src = $src.Replace('  final List<SprayProduct> products;', "  final List<SprayProduct> products;`r`n  final List<SprayRecord> activeRecords;`r`n  final GardenWeatherSnapshot weather;")
+  $fieldPattern = '(class SprayLogScreen extends StatefulWidget \{[\s\S]*?\r?\n\s+final List<SprayProduct> products;)'
+  if ($src -match $fieldPattern) {
+    $src = [regex]::Replace($src, $fieldPattern, "`$1`r`n  final List<SprayRecord> activeRecords;`r`n  final GardenWeatherSnapshot weather;", 1)
+  } else {
+    throw 'Could not find SprayLogScreen product field insertion point.'
+  }
 }
 
 $oldPage = 'SprayLogScreen(initialBeds: sprayBeds, initialCrops: sprayCrops, initialTarget: sprayTarget, bedCrops: bedCrops, products: products, onSave: saveSpray)'
@@ -232,6 +238,15 @@ if ($src.Contains($oldSave)) {
 }
 
 Set-Content -Path $mainPath -Value $src -NoNewline
+
+$check = Get-Content $mainPath -Raw
+if ($check -notmatch 'EasySprayPlanCard\(plan: plan') {
+  throw 'Patch finished but EasySprayPlanCard was not found in SprayLogScreen.'
+}
+if ($check -notmatch 'One recommendation\. One product\. One save button\.') {
+  throw 'Patch finished but Spray Log subtitle was not updated.'
+}
+
 Write-Host 'Applied easy Spray tab workflow.'
-Write-Host 'The Spray tab now auto-picks target, product, withholding days, Bunnings match, and save action.'
-Write-Host 'Next: flutter analyze; flutter run'
+Write-Host 'Verified: Spray tab subtitle now says One recommendation. One product. One save button.'
+Write-Host 'Next: flutter analyze; flutter run, then fully stop/restart the app on phone.'
