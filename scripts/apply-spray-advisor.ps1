@@ -9,14 +9,26 @@ if (-not (Test-Path $mainPath)) {
   throw "Could not find lib/main.dart from $PSScriptRoot"
 }
 
-# Ensure the data layers this feature depends on are present.
-foreach ($script in @($gardenTodayScript, $liveWeatherScript, $seasonAdvisorScript)) {
-  if (Test-Path $script) {
-    & $script
-  }
+$src = Get-Content $mainPath -Raw
+
+# Apply dependencies only when missing. This avoids duplicate helper blocks in local files.
+if ($src -notmatch 'class GardenTodayReport') {
+  if (-not (Test-Path $gardenTodayScript)) { throw 'Missing apply-garden-today.ps1. Run git pull origin main first.' }
+  & $gardenTodayScript
+  $src = Get-Content $mainPath -Raw
 }
 
-$src = Get-Content $mainPath -Raw
+if ($src -notmatch 'Future<void> fetchLiveWeather') {
+  if (-not (Test-Path $liveWeatherScript)) { throw 'Missing apply-live-weather.ps1. Run git pull origin main first.' }
+  & $liveWeatherScript
+  $src = Get-Content $mainPath -Raw
+}
+
+if ($src -notmatch 'String southernSeason\(DateTime date\)') {
+  if (-not (Test-Path $seasonAdvisorScript)) { throw 'Missing apply-season-advisor.ps1. Run git pull origin main first.' }
+  & $seasonAdvisorScript
+  $src = Get-Content $mainPath -Raw
+}
 
 $modelBlock = @'
 class SprayAdvisorReport {
