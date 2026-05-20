@@ -52,8 +52,8 @@ class BedSprayedSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectedText = selectedBeds.isEmpty ? 'No beds selected' : selectedBeds.toList()..sort();
-    final selectedLabel = selectedBeds.isEmpty ? 'No beds selected' : 'Selected: ${(selectedText as List<int>).map((bed) => 'Bed $bed').join(', ')}';
+    final selectedList = selectedBeds.toList()..sort();
+    final selectedLabel = selectedList.isEmpty ? 'No beds selected' : 'Selected: ${selectedList.map((bed) => 'Bed $bed').join(', ')}';
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: cardDecoration(radius: 22),
@@ -168,7 +168,14 @@ class SprayBedCard extends StatelessWidget {
 
 '@
 
-if ($src -notmatch 'class BedSprayedSelector extends StatelessWidget') {
+# Replace existing BedSprayedSelector block if it exists, otherwise insert.
+if ($src -match 'class BedSprayedSelector extends StatelessWidget \{') {
+  if ($src -match 'class BedSprayedSelector extends StatelessWidget \{[\s\S]*?class SprayProgressItem \{') {
+    $src = [regex]::Replace($src, 'class BedSprayedSelector extends StatelessWidget \{[\s\S]*?class SprayProgressItem \{', $bedClasses + 'class SprayProgressItem {', 1)
+  } elseif ($src -match 'class BedSprayedSelector extends StatelessWidget \{[\s\S]*?class FeedLogScreen extends StatefulWidget \{') {
+    $src = [regex]::Replace($src, 'class BedSprayedSelector extends StatelessWidget \{[\s\S]*?class FeedLogScreen extends StatefulWidget \{', $bedClasses + 'class FeedLogScreen extends StatefulWidget {', 1)
+  }
+} else {
   if ($src -match 'class SprayProgressItem \{') {
     $src = $src.Replace('class SprayProgressItem {', $bedClasses + 'class SprayProgressItem {')
   } elseif ($src -match 'class FeedLogScreen extends StatefulWidget') {
@@ -181,9 +188,10 @@ if ($src -notmatch 'class BedSprayedSelector extends StatelessWidget') {
 Set-Content -Path $mainPath -Value $src -NoNewline
 
 $check = Get-Content $mainPath -Raw
-foreach ($marker in @('BedSprayedSelector', 'SprayBedCard', 'Planted beds', 'Clear beds', 'syncSprayCropsFromBeds')) {
+foreach ($marker in @('BedSprayedSelector', 'SprayBedCard', 'Planted beds', 'Clear beds', 'syncSprayCropsFromBeds', 'final selectedList = selectedBeds.toList()..sort();')) {
   if ($check -notmatch [regex]::Escape($marker)) { throw "Missing bed UI marker: $marker" }
 }
+if ($check -match "final selectedText = selectedBeds.isEmpty") { throw 'Old selectedText bug still exists.' }
 
 Write-Host 'Applied improved Beds sprayed selector UI.'
 Write-Host 'Verified markers: BedSprayedSelector, SprayBedCard, Planted beds, Clear beds.'
