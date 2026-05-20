@@ -4,38 +4,6 @@ $mainPath = Join-Path $PSScriptRoot '..\lib\main.dart'
 if (-not (Test-Path $mainPath)) { throw 'Could not find lib/main.dart' }
 $src = Get-Content $mainPath -Raw
 
-# Make the Spray Log page visibly different and able to open the Products tab.
-$src = $src.Replace(
-"return AppPage(title: 'Spray Log', subtitle: 'Sprays link to beds, crops, products and withholding.', children: [",
-"return AppPage(title: 'Spray Log', subtitle: 'Guided review: bed, crop, target, product and Products link.', children: ["
-)
-$src = $src.Replace(
-"return AppPage(title: 'Spray Log', subtitle: 'Guided review: bed, crop, target, product and Bunnings link.', children: [",
-"return AppPage(title: 'Spray Log', subtitle: 'Guided review: bed, crop, target, product and Products link.', children: ["
-)
-
-# Add a Products-tab callback to the SprayLogScreen constructor and call site.
-$src = $src.Replace(
-"SprayLogScreen(initialBeds: sprayBeds, initialCrops: sprayCrops, initialTarget: sprayTarget, bedCrops: bedCrops, products: products, onSave: saveSpray)",
-"SprayLogScreen(initialBeds: sprayBeds, initialCrops: sprayCrops, initialTarget: sprayTarget, bedCrops: bedCrops, products: products, onOpenProducts: () => setState(() => tab = 4), onSave: saveSpray)"
-)
-$src = $src.Replace(
-"SprayLogScreen(initialBeds: sprayBeds, initialCrops: sprayCrops, initialTarget: sprayTarget, bedCrops: bedCrops, products: products, activeRecords: activeSprays, weather: weather, onSave: saveSpray)",
-"SprayLogScreen(initialBeds: sprayBeds, initialCrops: sprayCrops, initialTarget: sprayTarget, bedCrops: bedCrops, products: products, activeRecords: activeSprays, weather: weather, onOpenProducts: () => setState(() => tab = 4), onSave: saveSpray)"
-)
-$src = $src.Replace(
-"const SprayLogScreen({required this.initialBeds, required this.initialCrops, required this.initialTarget, required this.bedCrops, required this.products, required this.onSave, super.key});",
-"const SprayLogScreen({required this.initialBeds, required this.initialCrops, required this.initialTarget, required this.bedCrops, required this.products, required this.onOpenProducts, required this.onSave, super.key});"
-)
-$src = $src.Replace(
-"const SprayLogScreen({required this.initialBeds, required this.initialCrops, required this.initialTarget, required this.bedCrops, required this.products, required this.activeRecords, required this.weather, required this.onSave, super.key});",
-"const SprayLogScreen({required this.initialBeds, required this.initialCrops, required this.initialTarget, required this.bedCrops, required this.products, required this.activeRecords, required this.weather, required this.onOpenProducts, required this.onSave, super.key});"
-)
-if ($src -notmatch 'final VoidCallback onOpenProducts;') {
-  $src = $src.Replace("  final List<SprayProduct> products;`r`n  final void Function", "  final List<SprayProduct> products;`r`n  final VoidCallback onOpenProducts;`r`n  final void Function")
-  $src = $src.Replace("  final GardenWeatherSnapshot weather;`r`n  final void Function", "  final GardenWeatherSnapshot weather;`r`n  final VoidCallback onOpenProducts;`r`n  final void Function")
-}
-
 $summary = @'
       Panel(
         color: C.card,
@@ -83,20 +51,6 @@ $summary = @'
       ),
       const SizedBox(height: 18),
 '@
-
-# Replace previous Linked review block if present; otherwise insert the polished block.
-$oldPatternForest = '      Panel\(\r?\n        color: C\.forestSoft,[\s\S]*?      const SizedBox\(height: 18\),\r?\n'
-$oldPatternCard = '      Panel\(\r?\n        color: C\.card,\r?\n        child: Column\(\r?\n          crossAxisAlignment: CrossAxisAlignment\.start,\r?\n          children: \[\r?\n            Row\([\s\S]*?      const SizedBox\(height: 18\),\r?\n'
-if ($src -match $oldPatternForest) {
-  $src = [regex]::Replace($src, $oldPatternForest, $summary, 1)
-} elseif ($src -match $oldPatternCard -and $src -match 'Linked review') {
-  $src = [regex]::Replace($src, $oldPatternCard, $summary, 1)
-} elseif ($src -notmatch 'ProductReviewPanel\(') {
-  $src = $src.Replace(
-"return AppPage(title: 'Spray Log', subtitle: 'Guided review: bed, crop, target, product and Products link.', children: [",
-"return AppPage(title: 'Spray Log', subtitle: 'Guided review: bed, crop, target, product and Products link.', children: [`r`n$summary"
-  )
-}
 
 $reviewClasses = @'
 class SprayProgressItem {
@@ -203,15 +157,6 @@ class ReviewChip extends StatelessWidget {
 
 '@
 
-# Replace older helper classes if present, otherwise insert new ones.
-$helperPattern = 'class ReviewChip extends StatelessWidget \{[\s\S]*?\r?\nclass FeedLogScreen extends StatefulWidget \{'
-if ($src -match $helperPattern) {
-  $src = [regex]::Replace($src, $helperPattern, $reviewClasses + 'class FeedLogScreen extends StatefulWidget {', 1)
-} elseif ($src -notmatch 'class ProductReviewPanel extends StatelessWidget') {
-  $src = $src.Replace('class FeedLogScreen extends StatefulWidget {', $reviewClasses + 'class FeedLogScreen extends StatefulWidget {')
-}
-
-# Replace the existing compact ProductChoice with a more visual card.
 $productChoiceClass = @'
 class ProductChoice extends StatelessWidget {
   const ProductChoice({required this.product, required this.selected, required this.suggested, required this.onTap, super.key});
@@ -266,6 +211,51 @@ class ProductChoice extends StatelessWidget {
 }
 
 '@
+
+# Page subtitle and call site.
+$src = $src.Replace("return AppPage(title: 'Spray Log', subtitle: 'Sprays link to beds, crops, products and withholding.', children: [", "return AppPage(title: 'Spray Log', subtitle: 'Guided review: bed, crop, target, product and Products link.', children: [")
+$src = $src.Replace("return AppPage(title: 'Spray Log', subtitle: 'Guided review: bed, crop, target, product and Bunnings link.', children: [", "return AppPage(title: 'Spray Log', subtitle: 'Guided review: bed, crop, target, product and Products link.', children: [")
+
+if ($src -notmatch 'onOpenProducts: \(\) => setState\(\(\) => tab = 4\)') {
+  $src = $src.Replace("SprayLogScreen(initialBeds: sprayBeds, initialCrops: sprayCrops, initialTarget: sprayTarget, bedCrops: bedCrops, products: products, onSave: saveSpray)", "SprayLogScreen(initialBeds: sprayBeds, initialCrops: sprayCrops, initialTarget: sprayTarget, bedCrops: bedCrops, products: products, onOpenProducts: () => setState(() => tab = 4), onSave: saveSpray)")
+  $src = $src.Replace("SprayLogScreen(initialBeds: sprayBeds, initialCrops: sprayCrops, initialTarget: sprayTarget, bedCrops: bedCrops, products: products, activeRecords: activeSprays, weather: weather, onSave: saveSpray)", "SprayLogScreen(initialBeds: sprayBeds, initialCrops: sprayCrops, initialTarget: sprayTarget, bedCrops: bedCrops, products: products, activeRecords: activeSprays, weather: weather, onOpenProducts: () => setState(() => tab = 4), onSave: saveSpray)")
+}
+
+# Constructor parameter.
+$src = $src.Replace("const SprayLogScreen({required this.initialBeds, required this.initialCrops, required this.initialTarget, required this.bedCrops, required this.products, required this.onSave, super.key});", "const SprayLogScreen({required this.initialBeds, required this.initialCrops, required this.initialTarget, required this.bedCrops, required this.products, required this.onOpenProducts, required this.onSave, super.key});")
+$src = $src.Replace("const SprayLogScreen({required this.initialBeds, required this.initialCrops, required this.initialTarget, required this.bedCrops, required this.products, required this.activeRecords, required this.weather, required this.onSave, super.key});", "const SprayLogScreen({required this.initialBeds, required this.initialCrops, required this.initialTarget, required this.bedCrops, required this.products, required this.activeRecords, required this.weather, required this.onOpenProducts, required this.onSave, super.key});")
+
+# Widget field. This repairs the current broken state where the constructor exists but the field is missing.
+if ($src -notmatch 'final VoidCallback onOpenProducts;') {
+  $sprayBlockPattern = '(class SprayLogScreen extends StatefulWidget \{[\s\S]*?\r?\n\s*final List<SprayProduct> products;\r?\n)'
+  if ($src -match $sprayBlockPattern) {
+    $src = [regex]::Replace($src, $sprayBlockPattern, "`$1  final VoidCallback onOpenProducts;`r`n", 1)
+  } else {
+    throw 'Could not find SprayLogScreen products field to insert onOpenProducts.'
+  }
+}
+
+# Remove any previously inserted helper blocks and insert a single clean copy.
+if ($src -match 'class SprayProgressItem \{') {
+  $src = [regex]::Replace($src, 'class SprayProgressItem \{[\s\S]*?class FeedLogScreen extends StatefulWidget \{', $reviewClasses + 'class FeedLogScreen extends StatefulWidget {', 1)
+} elseif ($src -match 'class ReviewChip extends StatelessWidget \{') {
+  $src = [regex]::Replace($src, 'class ReviewChip extends StatelessWidget \{[\s\S]*?class FeedLogScreen extends StatefulWidget \{', $reviewClasses + 'class FeedLogScreen extends StatefulWidget {', 1)
+} else {
+  $src = $src.Replace('class FeedLogScreen extends StatefulWidget {', $reviewClasses + 'class FeedLogScreen extends StatefulWidget {')
+}
+
+# Replace or insert the top linked review panel.
+$linkedPanelPattern = '      Panel\(\r?\n        color: C\.card,\r?\n        child: Column\(\r?\n          crossAxisAlignment: CrossAxisAlignment\.start,\r?\n          children: \[\r?\n            Row\([\s\S]*?      const SizedBox\(height: 18\),\r?\n'
+$forestPanelPattern = '      Panel\(\r?\n        color: C\.forestSoft,[\s\S]*?      const SizedBox\(height: 18\),\r?\n'
+if ($src -match $linkedPanelPattern -and $src -match 'Linked review') {
+  $src = [regex]::Replace($src, $linkedPanelPattern, $summary, 1)
+} elseif ($src -match $forestPanelPattern -and $src -match 'Linked review') {
+  $src = [regex]::Replace($src, $forestPanelPattern, $summary, 1)
+} elseif ($src -notmatch 'ProductReviewPanel\(product: product') {
+  $src = $src.Replace("return AppPage(title: 'Spray Log', subtitle: 'Guided review: bed, crop, target, product and Products link.', children: [", "return AppPage(title: 'Spray Log', subtitle: 'Guided review: bed, crop, target, product and Products link.', children: [`r`n$summary")
+}
+
+# Replace ProductChoice with visual card once.
 $productPattern = 'class ProductChoice extends StatelessWidget \{[\s\S]*?\r?\nclass CropWrap extends StatelessWidget \{'
 if ($src -match $productPattern) {
   $src = [regex]::Replace($src, $productPattern, $productChoiceClass + 'class CropWrap extends StatelessWidget {', 1)
@@ -274,10 +264,16 @@ if ($src -match $productPattern) {
 Set-Content -Path $mainPath -Value $src -NoNewline
 
 $check = Get-Content $mainPath -Raw
-foreach ($marker in @('SprayProgressStrip', 'ProductReviewPanel', 'Open Products tab', 'Target match', 'Tap through the cards below')) {
+foreach ($marker in @('SprayProgressStrip', 'ProductReviewPanel', 'Open Products tab', 'Target match', 'Tap through the cards below', 'final VoidCallback onOpenProducts;')) {
   if ($check -notmatch [regex]::Escape($marker)) { throw "Missing marker after visual polish: $marker" }
 }
 
+$dupNames = @('class SprayProgressItem', 'class SprayProgressStrip', 'class ProductReviewPanel')
+foreach ($name in $dupNames) {
+  $count = ([regex]::Matches($check, [regex]::Escape($name))).Count
+  if ($count -ne 1) { throw "Duplicate check failed for $name. Found $count copies." }
+}
+
 Write-Host 'Applied visual and interactive Spray Log polish.'
-Write-Host 'Verified markers: SprayProgressStrip, ProductReviewPanel, Open Products tab, Target match.'
+Write-Host 'Verified: one helper copy, onOpenProducts field present, and visual markers inserted.'
 Write-Host 'Next: flutter clean; flutter pub get; flutter analyze; flutter run'
