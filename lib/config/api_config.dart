@@ -1,3 +1,3 @@
 class ApiConfig {
-  static const String geminiApiKey = 'YOUR_KEY_HERE';
+  static const String geminiApiKey = String.fromEnvironment('GEMINI_KEY');
 }
