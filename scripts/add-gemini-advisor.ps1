@@ -62,7 +62,7 @@ $newNavItems = @'
       NavSpec('Garden', CupertinoIcons.square_grid_2x2),
       NavSpec('Spray', CupertinoIcons.drop),
       NavSpec('Feed', CupertinoIcons.leaf_arrow_circlepath),
-      NavSpec('Advisor', CupertinoIcons.stethoscope),
+      NavSpec('Advisor', CupertinoIcons.lightbulb),
       NavSpec('Products', CupertinoIcons.cube_box),
     ];
 '@
@@ -72,6 +72,9 @@ if ($content.Contains($oldNavItems)) {
 } elseif ($content -notmatch "NavSpec\('Advisor'") {
   throw "Could not find bottom nav item list to replace."
 }
+
+# Safety patch for any already-inserted unsupported icon.
+$content = $content.Replace('CupertinoIcons.stethoscope', 'CupertinoIcons.lightbulb')
 
 [System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))
 
