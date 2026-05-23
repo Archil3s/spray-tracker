@@ -183,3 +183,90 @@ BedSpraySummary bedSpraySummary(
     checkedAt: checkedAt,
   );
 }
+
+Set<String> sprayRecordTargetCoverage(
+  SprayRecord record,
+  List<SprayProduct> products,
+) {
+  final targets = <String>{record.targetId};
+  final product = _sprayRecordProduct(record, products);
+  if (product != null) {
+    targets.addAll(product.targets);
+  }
+
+  final text = [
+    record.targetId,
+    record.product,
+    record.reason,
+    record.notes,
+    product?.type ?? '',
+    product?.activeIngredient ?? '',
+    product?.commonUses.join(' ') ?? '',
+  ].join(' ').toLowerCase();
+  if (_containsAny(text, const [
+    'fung',
+    'mildew',
+    'rust',
+    'blight',
+    'botrytis',
+    'rot',
+  ])) {
+    targets.add('fungus');
+  }
+  if (_containsAny(text, const [
+    'pest',
+    'insect',
+    'aphid',
+    'mite',
+    'whitefly',
+    'thrip',
+    'scale',
+    'caterpillar',
+    'slug',
+  ])) {
+    targets.add('pest');
+  }
+  if (_containsAny(text, const [
+    'feed',
+    'fert',
+    'tonic',
+    'seaweed',
+    'stress',
+    'plant health',
+  ])) {
+    targets.add('maintain');
+  }
+  if (targets.contains('prevent')) {
+    targets.addAll(const ['pest', 'fungus']);
+  }
+  return targets;
+}
+
+bool sprayRecordCoversTarget({
+  required SprayRecord record,
+  required List<SprayProduct> products,
+  required String targetId,
+  VegetableDefinition? crop,
+}) =>
+    sprayRecordTargetCoverage(record, products).contains(targetId) &&
+    (crop == null || sprayRecordCoversCrop(record, crop));
+
+bool sprayRecordCoversCrop(SprayRecord record, VegetableDefinition crop) {
+  final recordCrops = record.crops.map((name) => name.toLowerCase()).toSet();
+  if (recordCrops.contains('whole bed')) return true;
+  if (recordCrops.contains(crop.name.toLowerCase())) return true;
+  return recordCrops.contains(crop.id.replaceAll('_', ' ').toLowerCase());
+}
+
+SprayProduct? _sprayRecordProduct(
+  SprayRecord record,
+  List<SprayProduct> products,
+) {
+  for (final product in products) {
+    if (product.id == record.productId) return product;
+  }
+  return null;
+}
+
+bool _containsAny(String text, Iterable<String> needles) =>
+    needles.any(text.contains);

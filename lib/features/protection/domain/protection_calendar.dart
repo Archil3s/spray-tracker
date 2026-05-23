@@ -166,7 +166,18 @@ PreventativeCalendarItem _calendarItem({
   required BedSpraySummary hold,
 }) {
   final targetId = _targetId(target);
-  final last = _latestRecordForBedTarget(records, bed.number, targetId);
+  final issues = target == ProtectionTarget.fungus
+      ? crop.commonDiseases
+      : target == ProtectionTarget.pest
+          ? crop.commonPests
+          : crop.maintenanceTips;
+  final last = _latestRecordForBedTarget(
+    records: records,
+    products: products,
+    bed: bed.number,
+    targetId: targetId,
+    crop: crop,
+  );
   final interval = _protectionInterval(target, crop, risks);
   final due = _dateOnly(
     last == null ? now : last.date.add(Duration(days: interval)),
@@ -179,11 +190,6 @@ PreventativeCalendarItem _calendarItem({
           : due.difference(now).inDays <= 3
               ? ProtectionStatus.soon
               : ProtectionStatus.scheduled;
-  final issues = target == ProtectionTarget.fungus
-      ? crop.commonDiseases
-      : target == ProtectionTarget.pest
-          ? crop.commonPests
-          : crop.maintenanceTips;
   final product = _bestProtectionProduct(
     products: products,
     target: target,
@@ -215,13 +221,22 @@ PreventativeCalendarItem _calendarItem({
 }
 
 SprayRecord? _latestRecordForBedTarget(
-  Iterable<SprayRecord> records,
-  int bed,
-  String targetId,
-) {
+    {required Iterable<SprayRecord> records,
+    required List<SprayProduct> products,
+    required int bed,
+    required String targetId,
+    required VegetableDefinition crop}) {
   SprayRecord? latest;
   for (final record in records) {
-    if (!record.beds.contains(bed) || record.targetId != targetId) continue;
+    if (!record.beds.contains(bed) ||
+        !sprayRecordCoversTarget(
+          record: record,
+          products: products,
+          targetId: targetId,
+          crop: crop,
+        )) {
+      continue;
+    }
     if (latest == null ||
         record.date.isAfter(latest.date) ||
         (record.date.isAtSameMomentAs(latest.date) && record.id > latest.id)) {

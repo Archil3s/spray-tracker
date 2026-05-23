@@ -294,6 +294,71 @@ void main() {
       );
     });
 
+    test('counts broad products against every target they cover', () {
+      final items = generatePreventativeCalendar(
+        beds: const [GardenBed(1, Rect.fromLTWH(.10, .10, .20, .20))],
+        bedCrops: {
+          1: [_crop('tomato')],
+        },
+        records: [
+          _record(
+            id: 1,
+            date: DateTime(2026, 5, 21),
+            withholdingDays: 0,
+            targetId: 'pest',
+            productId: 'copper_fungus_control',
+          ),
+        ],
+        products: [_product()],
+        now: DateTime(2026, 5, 22),
+      );
+
+      final fungus = items.singleWhere(
+        (item) => item.target == ProtectionTarget.fungus,
+      );
+      final feed = items.singleWhere(
+        (item) => item.target == ProtectionTarget.feed,
+      );
+
+      expect(fungus.lastRecord?.id, 1);
+      expect(fungus.status, ProtectionStatus.scheduled);
+      expect(feed.lastRecord?.id, 1);
+    });
+
+    test('does not clear another crop from a crop-specific spray record', () {
+      final items = generatePreventativeCalendar(
+        beds: const [GardenBed(1, Rect.fromLTWH(.10, .10, .20, .20))],
+        bedCrops: {
+          1: [_crop('tomato'), _crop('lettuce')],
+        },
+        records: [
+          _record(
+            id: 1,
+            date: DateTime(2026, 5, 21),
+            withholdingDays: 0,
+            productId: 'copper_fungus_control',
+            crops: const ['Lettuce'],
+          ),
+        ],
+        products: [_product()],
+        now: DateTime(2026, 5, 22),
+      );
+
+      final tomato = items.singleWhere(
+        (item) =>
+            item.crop.id == 'tomato' && item.target == ProtectionTarget.pest,
+      );
+      final lettuce = items.singleWhere(
+        (item) =>
+            item.crop.id == 'lettuce' && item.target == ProtectionTarget.pest,
+      );
+
+      expect(tomato.lastRecord, isNull);
+      expect(tomato.status, ProtectionStatus.due);
+      expect(lettuce.lastRecord?.id, 1);
+      expect(lettuce.status, ProtectionStatus.scheduled);
+    });
+
     test('builds issue profiles with matching products for planted crops', () {
       final profiles = buildCropIssueProfiles(
         target: ProtectionTarget.fungus,
@@ -1207,11 +1272,12 @@ SprayRecord _record({
   List<int> beds = const [1],
   String targetId = 'pest',
   String productId = 'test',
+  List<String> crops = const ['Tomato'],
 }) =>
     SprayRecord(
       id: id,
       beds: beds,
-      crops: const ['Tomato'],
+      crops: crops,
       cropProfiles: const {},
       targetId: targetId,
       product: 'Test spray',
