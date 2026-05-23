@@ -334,3 +334,300 @@ Color _suggestionBackground(BedSuggestionLevel level) => switch (level) {
       BedSuggestionLevel.due => C.amberSoft,
       BedSuggestionLevel.warning => C.redSoft,
     };
+
+class _GardenBedSelector extends StatelessWidget {
+  const _GardenBedSelector({
+    required this.beds,
+    required this.selectedBed,
+    required this.bedCrops,
+    required this.records,
+    required this.onSelectBed,
+  });
+
+  final List<GardenBed> beds;
+  final int selectedBed;
+  final Map<int, List<VegetableDefinition>> bedCrops;
+  final List<SprayRecord> records;
+  final ValueChanged<int> onSelectBed;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        height: 96,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: beds.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 10),
+          itemBuilder: (context, index) {
+            final bed = beds[index];
+            final crops = bedCrops[bed.number] ?? const <VegetableDefinition>[];
+            final summary = bedSpraySummary(records, bed.number);
+            final selected = bed.number == selectedBed;
+            return CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: () => onSelectBed(bed.number),
+              child: Container(
+                width: 138,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: selected ? C.forest : C.card,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: selected ? C.forest : C.line,
+                    width: selected ? 1.8 : 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      bed.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: selected ? CupertinoColors.white : C.forest,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      crops.isEmpty
+                          ? 'No veg logged'
+                          : '${crops.length} veg logged',
+                      style: TextStyle(
+                        color: selected ? const Color(0xCCFFFFFF) : C.muted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    StatusPill(
+                      _bedSprayStatusLabel(summary.state),
+                      hold: summary.onHold,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      );
+}
+
+class _GardenBedCropPanel extends StatelessWidget {
+  const _GardenBedCropPanel({
+    required this.bed,
+    required this.crops,
+    required this.records,
+    required this.products,
+    required this.gardenRisks,
+    required this.spraySummary,
+    required this.onAddCrop,
+    required this.onRemoveCrop,
+    required this.onStartSpray,
+  });
+
+  final GardenBed bed;
+  final List<VegetableDefinition> crops;
+  final List<SprayRecord> records;
+  final List<SprayProduct> products;
+  final Future<GardenRiskSummary> gardenRisks;
+  final BedSpraySummary spraySummary;
+  final VoidCallback onAddCrop;
+  final ValueChanged<VegetableDefinition> onRemoveCrop;
+  final VoidCallback onStartSpray;
+
+  @override
+  Widget build(BuildContext context) => Panel(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    bed.label,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: C.forest,
+                    ),
+                  ),
+                ),
+                StatusPill(
+                  _bedSprayStatusLabel(spraySummary.state),
+                  hold: spraySummary.onHold,
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              bed.sizeLabel,
+              style:
+                  const TextStyle(color: C.muted, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 12),
+            _BedSprayStatusCard(summary: spraySummary),
+            const SizedBox(height: 14),
+            const SectionTitle('Current vegetables'),
+            const SizedBox(height: 8),
+            if (crops.isNotEmpty) ...[
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: crops
+                    .map(
+                      (crop) => CropChip(
+                          crop: crop, onRemove: () => onRemoveCrop(crop)),
+                    )
+                    .toList(),
+              ),
+            ] else
+              const EmptyCard('No vegetables logged in this bed.'),
+            const SizedBox(height: 14),
+            _BedSuggestionsPanel(
+              bed: bed,
+              crops: crops,
+              records: records,
+              products: products,
+              gardenRisks: gardenRisks,
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: SecondaryButton(
+                    label: crops.isEmpty ? 'Log vegetables' : 'Edit veg list',
+                    onPressed: onAddCrop,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: PrimaryButton(
+                      label: 'Log spray', onPressed: onStartSpray),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+}
+
+class _BedSprayStatusCard extends StatelessWidget {
+  const _BedSprayStatusCard({required this.summary});
+
+  final BedSpraySummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final record = summary.record;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _bedSprayStatusBackground(summary.state),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: C.line),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            _bedSprayStatusIcon(summary.state),
+            color: _bedSprayStatusColor(summary.state),
+            size: 22,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _bedSprayStatusTitle(summary),
+                  style: TextStyle(
+                    color: _bedSprayStatusColor(summary.state),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _bedSprayStatusBody(summary),
+                  style: const TextStyle(
+                    color: C.ink,
+                    fontSize: 12,
+                    height: 1.3,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (record != null) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ProductTag(
+                        label: record.product,
+                        color: C.forest,
+                        background: C.forestSoft,
+                      ),
+                      ProductTag(
+                        label: targetById(record.targetId).short,
+                        color: targetById(record.targetId).color,
+                        background: targetById(record.targetId).softColor,
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _bedSprayStatusLabel(BedSprayState state) => switch (state) {
+      BedSprayState.neverSprayed => 'UNSPRAYED',
+      BedSprayState.clear => 'CLEAR',
+      BedSprayState.hold => 'HOLD',
+    };
+
+String _bedSprayStatusTitle(BedSpraySummary summary) => switch (summary.state) {
+      BedSprayState.neverSprayed => 'No spray logged for this bed',
+      BedSprayState.clear => 'Sprayed and harvest clear',
+      BedSprayState.hold => 'Sprayed and still on withholding hold',
+    };
+
+String _bedSprayStatusBody(BedSpraySummary summary) {
+  final record = summary.record;
+  if (record == null) {
+    return 'Use Log spray when you apply a product so this bed can track harvest safety.';
+  }
+
+  final sprayed = shortDate(record.date);
+  final safe = shortDate(record.safeDate);
+  if (summary.onHold) {
+    return 'Sprayed $sprayed. Safe harvest starts $safe after ${record.days} withholding days.';
+  }
+
+  return 'Last sprayed $sprayed. Withholding period ended $safe.';
+}
+
+IconData _bedSprayStatusIcon(BedSprayState state) => switch (state) {
+      BedSprayState.neverSprayed => CupertinoIcons.circle,
+      BedSprayState.clear => CupertinoIcons.check_mark_circled_solid,
+      BedSprayState.hold => CupertinoIcons.exclamationmark_triangle_fill,
+    };
+
+Color _bedSprayStatusColor(BedSprayState state) => switch (state) {
+      BedSprayState.neverSprayed => C.muted,
+      BedSprayState.clear => C.forest,
+      BedSprayState.hold => C.amber,
+    };
+
+Color _bedSprayStatusBackground(BedSprayState state) => switch (state) {
+      BedSprayState.neverSprayed => C.greySoft,
+      BedSprayState.clear => C.forestSoft,
+      BedSprayState.hold => C.amberSoft,
+    };
