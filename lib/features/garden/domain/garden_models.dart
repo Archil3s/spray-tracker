@@ -288,6 +288,156 @@ const Map<GardenSeason, Set<String>> seasonalCropIds = {
   },
 };
 
+enum PlantingMethod {
+  directSow,
+  startTrays,
+  transplantSeedlings,
+  plantSets,
+  wait,
+}
+
+extension PlantingMethodDetails on PlantingMethod {
+  String get label => switch (this) {
+        PlantingMethod.directSow => 'Direct sow',
+        PlantingMethod.startTrays => 'Start trays',
+        PlantingMethod.transplantSeedlings => 'Transplant',
+        PlantingMethod.plantSets => 'Plant out',
+        PlantingMethod.wait => 'Wait',
+      };
+}
+
+class SeasonalPlantingAdvice {
+  const SeasonalPlantingAdvice({
+    required this.crop,
+    required this.season,
+    required this.method,
+    required this.inSeason,
+    required this.title,
+    required this.body,
+  });
+
+  final VegetableDefinition crop;
+  final GardenSeason season;
+  final PlantingMethod method;
+  final bool inSeason;
+  final String title;
+  final String body;
+}
+
+const _directSowCropIds = {
+  'peas',
+  'beans',
+  'broad_beans',
+  'carrot',
+  'beetroot',
+  'radish',
+  'parsnip',
+  'rocket',
+  'spinach',
+  'coriander',
+  'dill',
+  'spring_onion',
+  'sweetcorn',
+};
+
+const _trayStartCropIds = {
+  'tomato',
+  'capsicum',
+  'chilli',
+  'eggplant',
+  'broccoli',
+  'cauliflower',
+  'cabbage',
+  'kale',
+  'bok_choy',
+  'lettuce',
+  'celery',
+  'cucumber',
+  'zucchini',
+  'pumpkin',
+  'melon',
+  'basil',
+  'okra',
+};
+
+const _plantOutCropIds = {
+  'potato',
+  'onion',
+  'garlic',
+  'leek',
+  'chives',
+  'mint',
+  'oregano',
+  'rosemary',
+  'sage',
+  'thyme',
+  'asparagus',
+  'kumara',
+  'strawberry',
+  'raspberry',
+  'blueberry',
+};
+
+bool cropIsInSeason(VegetableDefinition crop, GardenSeason season) =>
+    seasonalCropIds[season]?.contains(crop.id) ?? false;
+
+SeasonalPlantingAdvice seasonalPlantingAdviceFor(
+  VegetableDefinition crop, {
+  DateTime? date,
+}) {
+  final season = gardenSeasonForDate(date ?? DateTime.now());
+  final inSeason = cropIsInSeason(crop, season);
+  if (!inSeason) {
+    return SeasonalPlantingAdvice(
+      crop: crop,
+      season: season,
+      method: PlantingMethod.wait,
+      inSeason: false,
+      title: 'Hold for later',
+      body:
+          '${crop.name} is not a strong ${season.label.toLowerCase()} planting choice for Blenheim.',
+    );
+  }
+
+  final method = _plantingMethodForCrop(crop);
+  return SeasonalPlantingAdvice(
+    crop: crop,
+    season: season,
+    method: method,
+    inSeason: true,
+    title: method.label,
+    body: _plantingBody(crop, method, season),
+  );
+}
+
+PlantingMethod _plantingMethodForCrop(VegetableDefinition crop) {
+  if (_plantOutCropIds.contains(crop.id)) return PlantingMethod.plantSets;
+  if (_directSowCropIds.contains(crop.id)) return PlantingMethod.directSow;
+  if (_trayStartCropIds.contains(crop.id)) return PlantingMethod.startTrays;
+  if (crop.familyId == 'brassicas') return PlantingMethod.startTrays;
+  if (crop.familyId == 'leafy_greens') return PlantingMethod.directSow;
+  if (crop.familyId == 'herbs') return PlantingMethod.transplantSeedlings;
+  return PlantingMethod.transplantSeedlings;
+}
+
+String _plantingBody(
+  VegetableDefinition crop,
+  PlantingMethod method,
+  GardenSeason season,
+) =>
+    switch (method) {
+      PlantingMethod.directSow =>
+        'Sow ${crop.name.toLowerCase()} seed direct into the bed now. Keep the surface evenly moist.',
+      PlantingMethod.startTrays =>
+        'Start ${crop.name.toLowerCase()} in trays now, then transplant strong seedlings.',
+      PlantingMethod.transplantSeedlings =>
+        'Use seedlings or divisions for ${crop.name.toLowerCase()} this ${season.label.toLowerCase()}.',
+      PlantingMethod.plantSets =>
+        'Plant sets, cloves, tubers, runners, or young plants rather than loose seed.',
+      PlantingMethod.wait =>
+        'Wait for a better planting window before adding this crop.',
+    };
+
 extension AutoBedFoodStyleDetails on AutoBedFoodStyle {
   String get label => switch (this) {
         AutoBedFoodStyle.quick => 'Quick turnover',

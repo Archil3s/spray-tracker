@@ -1,5 +1,13 @@
 part of '../../../../main.dart';
 
+enum _VegetablePlantingFilter {
+  all,
+  season,
+  direct,
+  trays,
+  plantOut,
+}
+
 void showVegetableLogger(
   BuildContext context,
   GardenBed bed,
@@ -39,6 +47,7 @@ class _VegetableLoggerSheetState extends State<_VegetableLoggerSheet> {
   final search = TextEditingController();
   late final selectedIds = widget.assigned.map((crop) => crop.id).toSet();
   String familyId = 'all';
+  _VegetablePlantingFilter plantingFilter = _VegetablePlantingFilter.season;
 
   @override
   void dispose() {
@@ -48,14 +57,37 @@ class _VegetableLoggerSheetState extends State<_VegetableLoggerSheet> {
 
   List<VegetableDefinition> get crops {
     final query = search.text.trim().toLowerCase();
-    return vegetableLibrary.where((crop) {
+    final currentSeason = gardenSeasonForDate(DateTime.now());
+    final filtered = vegetableLibrary.where((crop) {
       final family = familyById(crop.familyId);
       final matchesFamily = familyId == 'all' || crop.familyId == familyId;
       final matchesQuery = query.isEmpty ||
           crop.name.toLowerCase().contains(query) ||
           family.name.toLowerCase().contains(query);
-      return matchesFamily && matchesQuery;
+      if (!matchesFamily || !matchesQuery) return false;
+      final advice = seasonalPlantingAdviceFor(crop);
+      return switch (plantingFilter) {
+        _VegetablePlantingFilter.all => true,
+        _VegetablePlantingFilter.season => cropIsInSeason(crop, currentSeason),
+        _VegetablePlantingFilter.direct =>
+          advice.method == PlantingMethod.directSow,
+        _VegetablePlantingFilter.trays =>
+          advice.method == PlantingMethod.startTrays,
+        _VegetablePlantingFilter.plantOut =>
+          advice.method == PlantingMethod.transplantSeedlings ||
+              advice.method == PlantingMethod.plantSets,
+      };
     }).toList(growable: false);
+    filtered.sort((a, b) {
+      final aAdvice = seasonalPlantingAdviceFor(a);
+      final bAdvice = seasonalPlantingAdviceFor(b);
+      final season = bAdvice.inSeason.toString().compareTo(
+            aAdvice.inSeason.toString(),
+          );
+      if (season != 0) return season;
+      return a.name.compareTo(b.name);
+    });
+    return filtered;
   }
 
   void _toggle(VegetableDefinition crop) {
@@ -70,143 +102,238 @@ class _VegetableLoggerSheetState extends State<_VegetableLoggerSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => CupertinoPopupSurface(
-        child: SafeArea(
-          top: false,
-          child: Container(
-            height: MediaQuery.of(context).size.height * .82,
-            color: C.canvas,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Log vegetables in ${widget.bed.label}',
-                        style: const TextStyle(
-                          color: C.forest,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                        ),
+  Widget build(BuildContext context) {
+    final season = gardenSeasonForDate(DateTime.now());
+    return CupertinoPopupSurface(
+      child: SafeArea(
+        top: false,
+        child: Container(
+          height: MediaQuery.of(context).size.height * .82,
+          color: C.canvas,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Log vegetables in ${widget.bed.label}',
+                      style: const TextStyle(
+                        color: C.forest,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
-                    _GardenIconButton(
-                      label: 'Done',
-                      icon: CupertinoIcons.check_mark,
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                CupertinoSearchTextField(
-                  controller: search,
-                  placeholder: 'Search vegetables',
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  height: 40,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: vegetableFamilies.length + 1,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      final id =
-                          index == 0 ? 'all' : vegetableFamilies[index - 1].id;
-                      final label = index == 0
-                          ? 'All'
-                          : vegetableFamilies[index - 1].name;
-                      return NumberChip(
-                        label: label,
-                        selected: familyId == id,
-                        onTap: () => setState(() => familyId = id),
-                      );
-                    },
                   ),
+                  _GardenIconButton(
+                    label: 'Done',
+                    icon: CupertinoIcons.check_mark,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              CupertinoSearchTextField(
+                controller: search,
+                placeholder: 'Search vegetables',
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 10),
+              CupertinoSlidingSegmentedControl<_VegetablePlantingFilter>(
+                groupValue: plantingFilter,
+                children: const {
+                  _VegetablePlantingFilter.season: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('Now'),
+                  ),
+                  _VegetablePlantingFilter.direct: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('Direct'),
+                  ),
+                  _VegetablePlantingFilter.trays: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('Trays'),
+                  ),
+                  _VegetablePlantingFilter.plantOut: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('Plant out'),
+                  ),
+                  _VegetablePlantingFilter.all: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('All'),
+                  ),
+                },
+                onValueChanged: (value) {
+                  if (value == null) return;
+                  setState(() => plantingFilter = value);
+                },
+              ),
+              const SizedBox(height: 8),
+              ProductTag(
+                label: '${season.label} planting - Blenheim',
+                color: C.forest,
+                background: C.forestSoft,
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 40,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: vegetableFamilies.length + 1,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final id =
+                        index == 0 ? 'all' : vegetableFamilies[index - 1].id;
+                    final label =
+                        index == 0 ? 'All' : vegetableFamilies[index - 1].name;
+                    return NumberChip(
+                      label: label,
+                      selected: familyId == id,
+                      onTap: () => setState(() => familyId = id),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (selectedIds.isNotEmpty) ...[
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: vegetableLibrary
+                      .where((crop) => selectedIds.contains(crop.id))
+                      .map(
+                        (crop) => CropChip(
+                          crop: crop,
+                          onRemove: () => _toggle(crop),
+                        ),
+                      )
+                      .toList(),
                 ),
                 const SizedBox(height: 12),
-                if (selectedIds.isNotEmpty) ...[
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: vegetableLibrary
-                        .where((crop) => selectedIds.contains(crop.id))
-                        .map(
-                          (crop) => CropChip(
-                            crop: crop,
-                            onRemove: () => _toggle(crop),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: crops.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final crop = crops[index];
-                      final selected = selectedIds.contains(crop.id);
-                      return CupertinoButton(
-                        padding: EdgeInsets.zero,
-                        onPressed: () => _toggle(crop),
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: selected ? C.forestSoft : C.card,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: selected ? C.forest : C.line,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              CropIcon(crop.iconPath, size: 34),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      crop.name,
-                                      style: const TextStyle(
-                                        color: C.ink,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      familyById(crop.familyId).name,
-                                      style: const TextStyle(
-                                        color: C.muted,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(
-                                selected
-                                    ? CupertinoIcons.check_mark_circled_solid
-                                    : CupertinoIcons.add_circled,
-                                color: selected ? C.forest : C.muted,
-                              ),
-                            ],
+              ],
+              Expanded(
+                child: ListView.separated(
+                  itemCount: crops.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final crop = crops[index];
+                    final selected = selectedIds.contains(crop.id);
+                    final advice = seasonalPlantingAdviceFor(crop);
+                    return CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: () => _toggle(crop),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: selected ? C.forestSoft : C.card,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: selected ? C.forest : C.line,
                           ),
                         ),
-                      );
-                    },
-                  ),
+                        child: Row(
+                          children: [
+                            CropIcon(crop.iconPath, size: 34),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    crop.name,
+                                    style: const TextStyle(
+                                      color: C.ink,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    familyById(crop.familyId).name,
+                                    style: const TextStyle(
+                                      color: C.muted,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 7),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: [
+                                      ProductTag(
+                                        label: advice.title,
+                                        color: _plantingMethodColor(advice),
+                                        background:
+                                            _plantingMethodBackground(advice),
+                                      ),
+                                      ProductTag(
+                                        label: advice.inSeason
+                                            ? advice.season.label
+                                            : 'Out of season',
+                                        color: advice.inSeason
+                                            ? C.forest
+                                            : C.muted,
+                                        background: advice.inSeason
+                                            ? C.forestSoft
+                                            : C.greySoft,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    advice.body,
+                                    style: const TextStyle(
+                                      color: C.muted,
+                                      fontSize: 12,
+                                      height: 1.25,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(
+                              selected
+                                  ? CupertinoIcons.check_mark_circled_solid
+                                  : CupertinoIcons.add_circled,
+                              color: selected ? C.forest : C.muted,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
+  }
+}
+
+Color _plantingMethodColor(SeasonalPlantingAdvice advice) {
+  if (!advice.inSeason) return C.muted;
+  return switch (advice.method) {
+    PlantingMethod.directSow => C.forest,
+    PlantingMethod.startTrays => C.blue,
+    PlantingMethod.transplantSeedlings => C.amber,
+    PlantingMethod.plantSets => C.soil,
+    PlantingMethod.wait => C.muted,
+  };
+}
+
+Color _plantingMethodBackground(SeasonalPlantingAdvice advice) {
+  if (!advice.inSeason) return C.greySoft;
+  return switch (advice.method) {
+    PlantingMethod.directSow => C.forestSoft,
+    PlantingMethod.startTrays => C.blueSoft,
+    PlantingMethod.transplantSeedlings => C.amberSoft,
+    PlantingMethod.plantSets => C.soft,
+    PlantingMethod.wait => C.greySoft,
+  };
 }
 
 class _BedSuggestionsPanel extends StatelessWidget {

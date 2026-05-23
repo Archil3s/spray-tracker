@@ -484,6 +484,39 @@ void main() {
     });
   });
 
+  group('Seasonal planting advice', () {
+    test('uses direct sow advice for autumn root crops in Blenheim', () {
+      final advice = seasonalPlantingAdviceFor(
+        _crop('carrot'),
+        date: DateTime(2026, 5, 23),
+      );
+
+      expect(advice.season, GardenSeason.autumn);
+      expect(advice.inSeason, isTrue);
+      expect(advice.method, PlantingMethod.directSow);
+    });
+
+    test('uses tray advice for autumn brassicas', () {
+      final advice = seasonalPlantingAdviceFor(
+        _crop('broccoli'),
+        date: DateTime(2026, 5, 23),
+      );
+
+      expect(advice.inSeason, isTrue);
+      expect(advice.method, PlantingMethod.startTrays);
+    });
+
+    test('marks warm crops as out of season in autumn', () {
+      final advice = seasonalPlantingAdviceFor(
+        _crop('tomato'),
+        date: DateTime(2026, 5, 23),
+      );
+
+      expect(advice.inSeason, isFalse);
+      expect(advice.method, PlantingMethod.wait);
+    });
+  });
+
   group('GardenMap', () {
     testWidgets('commits a bed move after the drag ends', (tester) async {
       final moves = <Offset>[];
