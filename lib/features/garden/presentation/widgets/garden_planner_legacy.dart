@@ -921,21 +921,17 @@ class BedButton extends StatelessWidget {
               ),
               Positioned.fill(
                 child: Padding(
-                  padding: const EdgeInsets.all(5),
+                  padding: const EdgeInsets.all(6),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _BedMapTitle(title: title, selected: selected),
                       if (!designing && crops.isNotEmpty) ...[
-                        const Spacer(),
-                        _BedCropGardenPreview(crops: crops),
-                        const Spacer(),
+                        Expanded(child: _BedCropGardenPreview(crops: crops)),
                       ] else
-                        const Spacer(),
+                        const Expanded(child: SizedBox()),
                       if (activity.hasActivity)
-                        Align(
-                          alignment: Alignment.bottomLeft,
-                          child: _BedActivityIconStrip(activity: activity),
-                        ),
+                        _BedActivityIconStrip(activity: activity),
                     ],
                   ),
                 ),
@@ -1028,8 +1024,8 @@ class _BedMapTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        constraints: const BoxConstraints(maxWidth: 96),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        constraints: const BoxConstraints(maxWidth: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
         decoration: BoxDecoration(
           color: C.card.withValues(alpha: selected ? .92 : .76),
           borderRadius: BorderRadius.circular(999),
@@ -1042,7 +1038,7 @@ class _BedMapTitle extends StatelessWidget {
           style: const TextStyle(
             color: C.ink,
             fontWeight: FontWeight.w900,
-            fontSize: 10.5,
+            fontSize: 11,
             height: 1.05,
           ),
         ),
@@ -1055,31 +1051,93 @@ class _BedCropGardenPreview extends StatelessWidget {
   final List<VegetableDefinition> crops;
 
   @override
-  Widget build(BuildContext context) => Wrap(
-        alignment: WrapAlignment.center,
-        spacing: 4,
-        runSpacing: 3,
-        children: [
-          ...crops.take(6).map((crop) => CropIcon(crop.iconPath, size: 24)),
-          if (crops.length > 6)
-            Container(
-              width: 24,
-              height: 24,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: C.card.withValues(alpha: .84),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                '+${crops.length - 6}',
-                style: const TextStyle(
-                  color: C.forest,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                ),
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final width =
+              constraints.maxWidth.isFinite ? constraints.maxWidth : 100.0;
+          final height =
+              constraints.maxHeight.isFinite ? constraints.maxHeight : 70.0;
+          final iconSize = math.min(
+              46.0, math.max(30.0, math.min(width / 2.8, height / 1.7)));
+          final visible = crops.take(width < 86 ? 3 : 5).toList();
+          return Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 7,
+                runSpacing: 6,
+                children: [
+                  ...visible.map(
+                    (crop) => _GardenCropIconBadge(
+                      crop: crop,
+                      size: iconSize,
+                    ),
+                  ),
+                  if (crops.length > visible.length)
+                    _GardenMoreCropBadge(
+                      count: crops.length - visible.length,
+                      size: iconSize,
+                    ),
+                ],
               ),
             ),
-        ],
+          );
+        },
+      );
+}
+
+class _GardenCropIconBadge extends StatelessWidget {
+  const _GardenCropIconBadge({required this.crop, required this.size});
+
+  final VegetableDefinition crop;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: size,
+        height: size,
+        padding: EdgeInsets.all(math.max(3, size * .09)),
+        decoration: BoxDecoration(
+          color: C.card.withValues(alpha: .90),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: C.forest.withValues(alpha: .12)),
+          boxShadow: [
+            BoxShadow(
+              color: C.forest.withValues(alpha: .12),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: CropIcon(crop.iconPath, size: size),
+      );
+}
+
+class _GardenMoreCropBadge extends StatelessWidget {
+  const _GardenMoreCropBadge({required this.count, required this.size});
+
+  final int count;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: size,
+        height: size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: C.forest.withValues(alpha: .92),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: C.card, width: 1.5),
+        ),
+        child: Text(
+          '+$count',
+          style: TextStyle(
+            color: CupertinoColors.white,
+            fontSize: math.max(11, size * .32),
+            fontWeight: FontWeight.w900,
+          ),
+        ),
       );
 }
 
@@ -1244,16 +1302,20 @@ class _BedActivityIconStrip extends StatelessWidget {
   final BedMapActivity activity;
 
   @override
-  Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (activity.latestSpray != null)
-            _BedActivityBadge(record: activity.latestSpray!),
-          if (activity.latestFeed != null) ...[
-            const SizedBox(width: 3),
-            _BedActivityBadge(record: activity.latestFeed!),
+  Widget build(BuildContext context) => FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.bottomLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (activity.latestSpray != null)
+              _BedActivityBadge(record: activity.latestSpray!),
+            if (activity.latestFeed != null) ...[
+              const SizedBox(width: 4),
+              _BedActivityBadge(record: activity.latestFeed!),
+            ],
           ],
-        ],
+        ),
       );
 }
 
@@ -1265,20 +1327,43 @@ class _BedActivityBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final target = targetById(record.targetId);
+    final hold = record.onHold;
+    final label = hold ? 'HOLD' : target.short.toUpperCase();
     return Container(
-      width: 20,
-      height: 20,
+      height: 25,
+      padding: const EdgeInsets.symmetric(horizontal: 7),
       decoration: BoxDecoration(
-        color: record.onHold ? C.amber : target.softColor,
+        color: hold ? C.amber : target.softColor,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: target.color.withValues(alpha: .35)),
+        border: Border.all(
+          color: (hold ? C.amber : target.color).withValues(alpha: .40),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: C.ink.withValues(alpha: .08),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Icon(
-        record.onHold
-            ? CupertinoIcons.exclamationmark_triangle_fill
-            : target.icon,
-        color: record.onHold ? C.amber : target.color,
-        size: 12,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            hold ? CupertinoIcons.exclamationmark_triangle_fill : target.icon,
+            color: hold ? CupertinoColors.white : target.color,
+            size: 14,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: hold ? CupertinoColors.white : target.color,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
       ),
     );
   }
