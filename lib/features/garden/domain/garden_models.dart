@@ -191,6 +191,13 @@ const Map<GardenSeason, Set<String>> seasonalCropIds = {
     'parsley',
     'coriander',
     'chives',
+    'basil',
+    'mint',
+    'oregano',
+    'rosemary',
+    'sage',
+    'thyme',
+    'dill',
     'strawberry',
   },
   GardenSeason.summer: {
@@ -211,6 +218,13 @@ const Map<GardenSeason, Set<String>> seasonalCropIds = {
     'spring_onion',
     'parsley',
     'chives',
+    'basil',
+    'mint',
+    'oregano',
+    'rosemary',
+    'sage',
+    'thyme',
+    'dill',
     'strawberry',
   },
   GardenSeason.autumn: {
@@ -236,6 +250,12 @@ const Map<GardenSeason, Set<String>> seasonalCropIds = {
     'parsley',
     'coriander',
     'chives',
+    'mint',
+    'oregano',
+    'rosemary',
+    'sage',
+    'thyme',
+    'dill',
     'strawberry',
   },
   GardenSeason.winter: {
@@ -261,6 +281,10 @@ const Map<GardenSeason, Set<String>> seasonalCropIds = {
     'parsley',
     'coriander',
     'chives',
+    'mint',
+    'rosemary',
+    'sage',
+    'thyme',
   },
 };
 
@@ -337,14 +361,16 @@ List<AutoBedCropWeight> autoBedCropMix(AutoBedFoodStyle style) =>
           AutoBedCropWeight('carrot', 1.8),
           AutoBedCropWeight('radish', 1.8),
           AutoBedCropWeight('spring_onion', 1.4),
+          AutoBedCropWeight('basil', 1),
         ],
     };
 
 List<String> companionCropIdsFor(String cropId) => switch (cropId) {
-      'tomato' => const ['chives', 'parsley', 'lettuce', 'carrot'],
+      'tomato' => const ['basil', 'parsley', 'chives', 'lettuce', 'carrot'],
       'capsicum' || 'chilli' || 'eggplant' => const [
-          'chives',
+          'basil',
           'parsley',
+          'chives',
           'lettuce',
         ],
       'cucumber' || 'zucchini' => const [
@@ -372,6 +398,14 @@ List<String> companionCropIdsFor(String cropId) => switch (cropId) {
         ],
       'potato' => const ['beans', 'cabbage'],
       'strawberry' => const ['chives', 'lettuce'],
+      'basil' ||
+      'oregano' ||
+      'rosemary' ||
+      'sage' ||
+      'thyme' ||
+      'dill' ||
+      'mint' =>
+        const ['tomato', 'capsicum', 'lettuce'],
       _ => const <String>[],
     };
 
@@ -391,7 +425,7 @@ List<AutoBedCropWeight> companionAwareAutoBedCropMix(
   }
 
   for (final item in base.take(5)) {
-    for (final companionId in companionCropIdsFor(item.cropId).take(2)) {
+    for (final companionId in companionCropIdsFor(item.cropId).take(3)) {
       add(companionId, .48);
     }
   }
@@ -641,6 +675,11 @@ CropSpacing _fallbackCropSpacing(VegetableDefinition crop) {
     'berries' => const CropSpacing(
         plantCm: 60,
         rowCm: 90,
+        source: 'Garden guide',
+      ),
+    'herbs' => const CropSpacing(
+        plantCm: 25,
+        rowCm: 30,
         source: 'Garden guide',
       ),
     _ => const CropSpacing(

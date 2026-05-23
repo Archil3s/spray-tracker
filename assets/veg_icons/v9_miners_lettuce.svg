@@ -1,0 +1,18 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <path d="M50 88 C50 76 50 64 50 52" stroke="#5D4037" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <circle cx="50" cy="40" r="20" fill="#66BB6A"/>
+  <circle cx="50" cy="38" r="16" fill="#81C784"/>
+  <path d="M50 52 C50 52 50 40 50 40" stroke="#A5D6A7" stroke-width="1.5" fill="none"/>
+  <line x1="50" y1="40" x2="50" y2="22" stroke="#81C784" stroke-width="1" opacity="0.4"/>
+  <line x1="34" y1="40" x2="66" y2="40" stroke="#81C784" stroke-width="1" opacity="0.4"/>
+  <line x1="38" y1="28" x2="62" y2="52" stroke="#81C784" stroke-width="1" opacity="0.3"/>
+  <line x1="62" y1="28" x2="38" y2="52" stroke="#81C784" stroke-width="1" opacity="0.3"/>
+  <circle cx="50" cy="40" r="6" fill="#A5D6A7" opacity="0.5"/>
+  <circle cx="35" cy="66" r="14" fill="#4CAF50"/>
+  <circle cx="65" cy="66" r="14" fill="#43A047"/>
+  <circle cx="50" cy="76" r="14" fill="#66BB6A"/>
+  <line x1="35" y1="56" x2="35" y2="80" stroke="#388E3C" stroke-width="1" opacity="0.4"/>
+  <line x1="21" y1="66" x2="49" y2="66" stroke="#388E3C" stroke-width="1" opacity="0.4"/>
+  <line x1="65" y1="56" x2="65" y2="80" stroke="#388E3C" stroke-width="1" opacity="0.4"/>
+  <line x1="51" y1="66" x2="79" y2="66" stroke="#388E3C" stroke-width="1" opacity="0.4"/>
+</svg>

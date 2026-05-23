@@ -1,0 +1,18 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <path d="M36 92 C34 78 34 64 36 50 C38 36 42 22 46 10" stroke="#F9A825" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <path d="M36 92 C34 78 34 64 36 50 C38 36 42 22 46 10" stroke="#FFF176" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <g fill="#F9A825" opacity="0.8">
+    <circle cx="33" cy="82" r="2.5"/><circle cx="33" cy="74" r="2.5"/><circle cx="33" cy="66" r="2.5"/>
+    <circle cx="34" cy="58" r="2.5"/><circle cx="35" cy="50" r="2.5"/><circle cx="37" cy="42" r="2.5"/>
+    <circle cx="39" cy="34" r="2.5"/><circle cx="41" cy="26" r="2.5"/><circle cx="44" cy="18" r="2"/>
+    <circle cx="37" cy="82" r="2.5"/><circle cx="37" cy="74" r="2.5"/><circle cx="37" cy="66" r="2.5"/>
+    <circle cx="38" cy="58" r="2.5"/><circle cx="39" cy="50" r="2.5"/><circle cx="41" cy="42" r="2.5"/>
+    <circle cx="43" cy="34" r="2.5"/><circle cx="45" cy="26" r="2.5"/>
+  </g>
+  <g fill="#558B2F">
+    <path d="M46 10 C42 4 38 0 38 0 C40 4 44 8 46 10 Z"/>
+    <path d="M46 10 C50 6 56 4 58 6 C54 6 50 8 46 10 Z"/>
+    <path d="M36 50 C30 46 24 46 22 50 C26 46 32 46 36 50 Z"/>
+    <path d="M38 34 C32 30 26 30 24 34 C28 30 34 30 38 34 Z"/>
+  </g>
+</svg>

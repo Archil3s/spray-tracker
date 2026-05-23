@@ -1,0 +1,20 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <path d="M50 90 C50 78 50 68 50 60 C50 50 52 42 52 32" stroke="#8D6E63" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <path d="M52 60 C42 56 30 50 22 42" stroke="#795548" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <path d="M50 70 C62 66 74 60 82 52" stroke="#795548" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <g fill="#F48FB1" opacity="0.95">
+    <circle cx="28" cy="38" r="8"/><circle cx="24" cy="46" r="7"/>
+    <circle cx="32" cy="44" r="7"/><circle cx="36" cy="36" r="8"/>
+  </g>
+  <g fill="#F48FB1" opacity="0.95">
+    <circle cx="82" cy="48" r="8"/><circle cx="78" cy="56" r="7"/>
+    <circle cx="76" cy="46" r="7"/><circle cx="84" cy="44" r="6"/>
+  </g>
+  <g fill="#F48FB1">
+    <circle cx="52" cy="26" r="9"/><circle cx="44" cy="24" r="7"/>
+    <circle cx="60" cy="24" r="7"/><circle cx="52" cy="12" r="5"/>
+  </g>
+  <g fill="#E91E63" opacity="0.6">
+    <circle cx="52" cy="26" r="5"/><circle cx="44" cy="24" r="4"/><circle cx="60" cy="24" r="4"/>
+  </g>
+</svg>
