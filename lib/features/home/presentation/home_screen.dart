@@ -135,7 +135,7 @@ class HomeScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(16),
                       onPressed: onOpenProducts,
                       child: const Text(
-                        'Products',
+                        'Protect',
                         style: TextStyle(
                           color: CupertinoColors.white,
                           fontWeight: FontWeight.w900,

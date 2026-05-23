@@ -5,6 +5,7 @@ import 'package:spray_tracker/main.dart';
 import 'package:spray_tracker/models/garden_snapshot.dart';
 import 'package:spray_tracker/models/openfarm_crop.dart';
 import 'package:spray_tracker/models/spray_condition.dart';
+import 'package:spray_tracker/models/spray_product.dart';
 
 void main() {
   group('cropNamesForBeds', () {
@@ -218,6 +219,95 @@ void main() {
       );
 
       expect(planSprayWindowReminder(window, now: now), isNull);
+    });
+  });
+
+  group('Preventative protection', () {
+    test('builds pest fungus and feed calendar items for planted crops', () {
+      final items = generatePreventativeCalendar(
+        beds: const [GardenBed(1, Rect.fromLTWH(.10, .10, .20, .20))],
+        bedCrops: {
+          1: [_crop('tomato')],
+        },
+        records: const [],
+        products: [_product()],
+        risks: const GardenRiskSummary(
+          frostRisk: GardenRiskLevel.low,
+          soilEvaporationRisk: GardenRiskLevel.low,
+          pestPressureRisk: GardenRiskLevel.high,
+          lowestTemperatureC: 12,
+          peakTemperatureC: 22,
+          peakWindKph: 8,
+          rainNext24HoursMm: 0,
+        ),
+        now: DateTime(2026, 5, 22),
+      );
+
+      expect(items, hasLength(3));
+      expect(
+        items.map((item) => item.target).toSet(),
+        {
+          ProtectionTarget.pest,
+          ProtectionTarget.fungus,
+          ProtectionTarget.feed,
+        },
+      );
+      expect(items.where((item) => item.status == ProtectionStatus.due),
+          hasLength(3));
+      expect(
+        items
+            .firstWhere((item) => item.target == ProtectionTarget.pest)
+            .intervalDays,
+        7,
+      );
+    });
+
+    test('blocks spray calendar items while bed is on withholding hold', () {
+      final items = generatePreventativeCalendar(
+        beds: const [GardenBed(1, Rect.fromLTWH(.10, .10, .20, .20))],
+        bedCrops: {
+          1: [_crop('lettuce')],
+        },
+        records: [
+          _record(
+            id: 1,
+            date: DateTime(2026, 5, 21),
+            withholdingDays: 7,
+            targetId: 'fungus',
+          ),
+        ],
+        products: [_product()],
+        now: DateTime(2026, 5, 22),
+      );
+
+      expect(
+        items
+            .where((item) => item.target != ProtectionTarget.feed)
+            .every((item) => item.status == ProtectionStatus.blocked),
+        isTrue,
+      );
+      expect(
+        items
+            .singleWhere((item) => item.target == ProtectionTarget.feed)
+            .status,
+        isNot(ProtectionStatus.blocked),
+      );
+    });
+
+    test('builds issue profiles with matching products for planted crops', () {
+      final profiles = buildCropIssueProfiles(
+        target: ProtectionTarget.fungus,
+        crops: [_crop('tomato'), _crop('lettuce')],
+        products: [_product()],
+      );
+
+      final mildew = profiles.firstWhere(
+        (profile) => profile.name == 'Powdery mildew',
+      );
+
+      expect(mildew.crops.map((crop) => crop.id), contains('tomato'));
+      expect(mildew.products.single.name, 'Copper Fungus Control');
+      expect(mildew.preventativeTips, isNotEmpty);
     });
   });
 
@@ -1115,19 +1205,39 @@ SprayRecord _record({
   required DateTime date,
   required int withholdingDays,
   List<int> beds = const [1],
+  String targetId = 'pest',
+  String productId = 'test',
 }) =>
     SprayRecord(
       id: id,
       beds: beds,
       crops: const ['Tomato'],
       cropProfiles: const {},
-      targetId: 'pest',
+      targetId: targetId,
       product: 'Test spray',
-      productId: 'test',
+      productId: productId,
       reason: '',
       notes: '',
       date: date,
       days: withholdingDays,
+    );
+
+SprayProduct _product() => const SprayProduct(
+      id: 'copper_fungus_control',
+      name: 'Copper Fungus Control',
+      brand: 'Test',
+      type: 'Fungicide and plant health',
+      activeIngredient: 'Copper',
+      withholdingDays: 1,
+      withholdingNote: 'Test only',
+      reEntryHours: 1,
+      category: 'organic',
+      commonUses: ['powdery mildew', 'blight', 'aphids', 'vegetables'],
+      suitableCrops: ['tomato', 'lettuce', 'vegetables'],
+      reSprayIntervalDays: 7,
+      acvmRegistrationNumber: '',
+      source: 'Test',
+      notes: '',
     );
 
 SprayForecastHour _forecastHour(

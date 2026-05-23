@@ -12,7 +12,7 @@ class BottomNav extends StatelessWidget {
       NavSpec('Garden', CupertinoIcons.square_grid_2x2),
       NavSpec('Spray', CupertinoIcons.drop),
       NavSpec('Records', CupertinoIcons.list_bullet),
-      NavSpec('Products', CupertinoIcons.cube_box),
+      NavSpec('Protect', CupertinoIcons.shield),
     ];
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 6, 14, 12),

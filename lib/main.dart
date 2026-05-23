@@ -20,6 +20,7 @@ part 'core/app_shell.dart';
 part 'features/garden/domain/garden_models.dart';
 part 'features/spray/domain/spray_records.dart';
 part 'features/garden/domain/bed_suggestions.dart';
+part 'features/protection/domain/protection_calendar.dart';
 part 'features/home/presentation/home_controller.dart';
 part 'features/home/presentation/home_screen.dart';
 part 'features/weather/presentation/weather_panels.dart';
@@ -30,6 +31,7 @@ part 'features/garden/presentation/widgets/garden_planner_legacy.dart';
 part 'features/spray/presentation/pages/spray_screens.dart';
 part 'features/garden/presentation/widgets/crop_planner.dart';
 part 'features/crops/presentation/widgets/openfarm_widgets.dart';
+part 'features/protection/presentation/protection_screen.dart';
 part 'common/widgets/shared_widgets.dart';
 
 void main() => runApp(const SprayTrackerApp());

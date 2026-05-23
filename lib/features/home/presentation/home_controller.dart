@@ -695,10 +695,15 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
         onSave: saveSpray,
       ),
       RecordsScreen(records: records, message: message, onDelete: deleteRecord),
-      ProductsScreen(
+      ProtectionScreen(
+        gardenBeds: gardenLayout,
+        bedCrops: bedCrops,
+        records: records,
         products: products,
         loading: productsLoading,
         message: message,
+        gardenRisks: gardenRisks,
+        onPlanSpray: () => setState(() => tab = 2),
       ),
     ];
 

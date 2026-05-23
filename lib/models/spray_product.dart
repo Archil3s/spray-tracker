@@ -99,6 +99,18 @@ class SprayProduct {
   }
 
   String get targetsText => commonUses.join(', ');
+  String get searchText => [
+        name,
+        brand,
+        type,
+        activeIngredient,
+        category,
+        source,
+        notes,
+        ...commonUses,
+        ...suitableCrops,
+      ].join(' ').toLowerCase();
+
   int get days => withholdingDays;
   List<String> get targets {
     final lower = '$type ${commonUses.join(' ')}'.toLowerCase();
