@@ -748,12 +748,16 @@ class GardenMap extends StatefulWidget {
     required this.designing,
     required this.onTap,
     required this.onMove,
+    this.records = const [],
+    this.selectedBeds = const {},
     super.key,
   });
   final int selectedBed;
   final GardenPlot plot;
   final List<GardenBed> gardenBeds;
   final Map<int, List<VegetableDefinition>> bedCrops;
+  final List<SprayRecord> records;
+  final Set<int> selectedBeds;
   final bool Function(int bed) isHold;
   final bool designing;
   final ValueChanged<int> onTap;
@@ -833,10 +837,12 @@ class _GardenMapState extends State<GardenMap> {
                     onPanCancel: widget.designing ? _cancelDrag : null,
                     child: BedButton(
                       bed: visibleBed,
-                      selected: widget.selectedBed == bed.number,
+                      selected: widget.selectedBed == bed.number ||
+                          widget.selectedBeds.contains(bed.number),
                       hold: widget.isHold(bed.number),
                       crops: widget.bedCrops[bed.number] ??
                           const <VegetableDefinition>[],
+                      activity: _bedMapActivity(widget.records, bed.number),
                       designing: widget.designing,
                       onTap: () => widget.onTap(bed.number),
                     ),
@@ -855,6 +861,7 @@ class BedButton extends StatelessWidget {
     required this.selected,
     required this.hold,
     required this.crops,
+    required this.activity,
     required this.designing,
     required this.onTap,
     super.key,
@@ -864,6 +871,7 @@ class BedButton extends StatelessWidget {
   final bool hold;
   final bool designing;
   final List<VegetableDefinition> crops;
+  final BedMapActivity activity;
   final VoidCallback onTap;
 
   @override
@@ -889,30 +897,180 @@ class BedButton extends StatelessWidget {
             children: [
               Center(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  padding: const EdgeInsets.all(4),
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
-                    child: Text(
-                      designing
-                          ? '${bed.label}\n${bed.sizeLabel}'
-                          : '${bed.number}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: C.ink,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 12,
-                      ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          designing
+                              ? '${bed.label}\n${bed.sizeLabel}'
+                              : bed.label,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: C.ink,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 12,
+                          ),
+                        ),
+                        if (!designing && crops.isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          _BedCropIconStrip(crops: crops),
+                        ],
+                        if (!designing && activity.hasActivity) ...[
+                          const SizedBox(height: 3),
+                          _BedActivityIconStrip(activity: activity),
+                        ],
+                      ],
                     ),
                   ),
                 ),
               ),
-              if (crops.isNotEmpty && !designing)
+              if (selected)
                 Positioned(
-                    top: -12, right: -12, child: IconCluster(crops: crops)),
+                  top: 4,
+                  right: 4,
+                  child: Container(
+                    width: 15,
+                    height: 15,
+                    decoration: BoxDecoration(
+                      color: C.forest,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: C.card, width: 1.5),
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.check_mark,
+                      color: CupertinoColors.white,
+                      size: 10,
+                    ),
+                  ),
+                ),
+              if (designing && activity.hasActivity)
+                Positioned(
+                  bottom: 4,
+                  left: 4,
+                  child: _BedActivityIconStrip(activity: activity),
+                ),
+              if (designing && crops.isNotEmpty)
+                Positioned(
+                  top: -12,
+                  right: -12,
+                  child: IconCluster(crops: crops),
+                ),
             ],
           ),
         ),
       );
+}
+
+class BedMapActivity {
+  const BedMapActivity({
+    required this.latestSpray,
+    required this.latestFeed,
+  });
+
+  final SprayRecord? latestSpray;
+  final SprayRecord? latestFeed;
+
+  bool get hasActivity => latestSpray != null || latestFeed != null;
+}
+
+BedMapActivity _bedMapActivity(List<SprayRecord> records, int bed) {
+  SprayRecord? latestSpray;
+  SprayRecord? latestFeed;
+  for (final record in records) {
+    if (!record.beds.contains(bed)) continue;
+    final feed = record.targetId == 'maintain';
+    if (feed) {
+      if (latestFeed == null ||
+          record.date.isAfter(latestFeed.date) ||
+          (record.date.isAtSameMomentAs(latestFeed.date) &&
+              record.id > latestFeed.id)) {
+        latestFeed = record;
+      }
+    } else if (latestSpray == null ||
+        record.date.isAfter(latestSpray.date) ||
+        (record.date.isAtSameMomentAs(latestSpray.date) &&
+            record.id > latestSpray.id)) {
+      latestSpray = record;
+    }
+  }
+  return BedMapActivity(latestSpray: latestSpray, latestFeed: latestFeed);
+}
+
+class _BedCropIconStrip extends StatelessWidget {
+  const _BedCropIconStrip({required this.crops});
+
+  final List<VegetableDefinition> crops;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ...crops.take(4).map(
+                (crop) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 1),
+                  child: CropIcon(crop.iconPath, size: 17),
+                ),
+              ),
+          if (crops.length > 4)
+            Text(
+              '+${crops.length - 4}',
+              style: const TextStyle(
+                color: C.forest,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+        ],
+      );
+}
+
+class _BedActivityIconStrip extends StatelessWidget {
+  const _BedActivityIconStrip({required this.activity});
+
+  final BedMapActivity activity;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (activity.latestSpray != null)
+            _BedActivityBadge(record: activity.latestSpray!),
+          if (activity.latestFeed != null) ...[
+            const SizedBox(width: 3),
+            _BedActivityBadge(record: activity.latestFeed!),
+          ],
+        ],
+      );
+}
+
+class _BedActivityBadge extends StatelessWidget {
+  const _BedActivityBadge({required this.record});
+
+  final SprayRecord record;
+
+  @override
+  Widget build(BuildContext context) {
+    final target = targetById(record.targetId);
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        color: record.onHold ? C.amber : target.softColor,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: target.color.withValues(alpha: .35)),
+      ),
+      child: Icon(
+        record.onHold
+            ? CupertinoIcons.exclamationmark_triangle_fill
+            : target.icon,
+        color: record.onHold ? C.amber : target.color,
+        size: 12,
+      ),
+    );
+  }
 }
 
 class _GardenIconButton extends StatelessWidget {

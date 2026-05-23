@@ -96,6 +96,7 @@ class _GardenScreenState extends State<GardenScreen> {
           plot: widget.plot,
           gardenBeds: widget.gardenBeds,
           bedCrops: widget.bedCrops,
+          records: widget.records,
           isHold: widget.isHold,
           onToggle: () => setState(() => outlineMode = !outlineMode),
           onSelectBed: widget.onSelectBed,
@@ -176,6 +177,7 @@ class _GardenOutlinePanel extends StatelessWidget {
     required this.plot,
     required this.gardenBeds,
     required this.bedCrops,
+    required this.records,
     required this.isHold,
     required this.onToggle,
     required this.onSelectBed,
@@ -195,6 +197,7 @@ class _GardenOutlinePanel extends StatelessWidget {
   final GardenPlot plot;
   final List<GardenBed> gardenBeds;
   final Map<int, List<VegetableDefinition>> bedCrops;
+  final List<SprayRecord> records;
   final bool Function(int bed) isHold;
   final VoidCallback onToggle;
   final ValueChanged<int> onSelectBed;
@@ -274,6 +277,7 @@ class _GardenOutlinePanel extends StatelessWidget {
                   plot: plot,
                   gardenBeds: gardenBeds,
                   bedCrops: bedCrops,
+                  records: records,
                   isHold: isHold,
                   designing: true,
                   onTap: onSelectBed,

@@ -3,8 +3,10 @@ part of '../../../../main.dart';
 class SprayLogScreen extends StatefulWidget {
   const SprayLogScreen({
     required this.initialBeds,
+    required this.plot,
     required this.gardenBeds,
     required this.bedCrops,
+    required this.records,
     required this.products,
     required this.productsLoading,
     required this.sprayConditions,
@@ -12,8 +14,10 @@ class SprayLogScreen extends StatefulWidget {
     super.key,
   });
   final Set<int> initialBeds;
+  final GardenPlot plot;
   final List<GardenBed> gardenBeds;
   final Map<int, List<VegetableDefinition>> bedCrops;
+  final List<SprayRecord> records;
   final List<SprayProduct> products;
   final bool productsLoading;
   final Future<SprayConditionSummary> sprayConditions;
@@ -77,6 +81,7 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
       ...manualCrops,
     }.toList()
       ..sort();
+    final sortedBeds = beds.toList()..sort();
     return AppPage(
       title: 'Spray Log',
       subtitle:
@@ -86,23 +91,60 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
         const SizedBox(height: 18),
         const SectionTitle('Beds sprayed'),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: widget.gardenBeds
-              .map(
-                (bed) => NumberChip(
-                  label: '${bed.number}',
-                  selected: beds.contains(bed.number),
-                  onTap: () => setState(
-                    () => beds.contains(bed.number)
-                        ? beds.remove(bed.number)
-                        : beds.add(bed.number),
-                  ),
-                ),
-              )
-              .toList(),
+        Container(
+          height: 360,
+          decoration: BoxDecoration(
+            color: C.soft,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: C.line),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: GardenMap(
+            selectedBed: beds.isEmpty ? -1 : beds.first,
+            selectedBeds: beds,
+            plot: widget.plot,
+            gardenBeds: widget.gardenBeds,
+            bedCrops: widget.bedCrops,
+            records: widget.records,
+            isHold: (bed) => widget.records.any(
+              (record) => record.beds.contains(bed) && record.onHold,
+            ),
+            designing: false,
+            onTap: (bed) => setState(
+              () {
+                if (beds.contains(bed)) {
+                  beds.remove(bed);
+                } else {
+                  beds.add(bed);
+                }
+              },
+            ),
+            onMove: (_, __) {},
+          ),
         ),
+        const SizedBox(height: 8),
+        if (beds.isEmpty)
+          const EmptyCard('Tap beds on the garden outline to select them.')
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ProductTag(
+                label:
+                    '${beds.length} bed${beds.length == 1 ? '' : 's'} selected',
+                color: C.forest,
+                background: C.forestSoft,
+              ),
+              ...sortedBeds.map(
+                (bed) => ProductTag(
+                  label: 'Bed $bed',
+                  color: C.forest,
+                  background: C.card,
+                ),
+              ),
+            ],
+          ),
         const SizedBox(height: 18),
         const SectionTitle('Crops affected'),
         const SizedBox(height: 8),

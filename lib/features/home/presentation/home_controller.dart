@@ -687,8 +687,10 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
       SprayLogScreen(
         key: ValueKey('${products.length}-${records.length}'),
         initialBeds: {selectedBed},
+        plot: gardenPlot,
         gardenBeds: gardenLayout,
         bedCrops: bedCrops,
+        records: records,
         products: products,
         productsLoading: productsLoading,
         sprayConditions: sprayConditions,
