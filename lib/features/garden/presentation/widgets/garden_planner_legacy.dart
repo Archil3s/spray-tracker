@@ -886,7 +886,6 @@ class BedButton extends StatelessWidget {
         : hold
             ? C.amber
             : C.soil.withValues(alpha: .42);
-    final title = designing ? '${bed.label}\n${bed.sizeLabel}' : bed.label;
     return CupertinoButton(
       padding: EdgeInsets.zero,
       onPressed: onTap,
@@ -920,21 +919,19 @@ class BedButton extends StatelessWidget {
                 ),
               ),
               Positioned.fill(
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _BedMapTitle(title: title, selected: selected),
-                      if (!designing && crops.isNotEmpty) ...[
-                        Expanded(child: _BedCropGardenPreview(crops: crops)),
-                      ] else
-                        const Expanded(child: SizedBox()),
-                      if (activity.hasActivity)
-                        _BedActivityIconStrip(activity: activity),
-                    ],
-                  ),
-                ),
+                child: designing
+                    ? _DesignBedMapContent(
+                        bed: bed,
+                        selected: selected,
+                        crops: crops,
+                        activity: activity,
+                      )
+                    : _OperationalBedMapContent(
+                        bed: bed,
+                        selected: selected,
+                        crops: crops,
+                        activity: activity,
+                      ),
               ),
               if (selected)
                 Positioned(
@@ -962,18 +959,120 @@ class BedButton extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (designing && crops.isNotEmpty)
-                Positioned(
-                  top: -11,
-                  right: -11,
-                  child: IconCluster(crops: crops),
-                ),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class _DesignBedMapContent extends StatelessWidget {
+  const _DesignBedMapContent({
+    required this.bed,
+    required this.selected,
+    required this.crops,
+    required this.activity,
+  });
+
+  final GardenBed bed;
+  final bool selected;
+  final List<VegetableDefinition> crops;
+  final BedMapActivity activity;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final compact =
+              constraints.maxWidth < 46 || constraints.maxHeight < 38;
+          return Stack(
+            children: [
+              Positioned(
+                top: 5,
+                left: 5,
+                right: selected ? 27 : 5,
+                child: Align(
+                  alignment: compact || crops.isEmpty
+                      ? Alignment.center
+                      : Alignment.topLeft,
+                  child: _BedMapTitle(
+                    title: compact ? '${bed.number}' : bed.label,
+                    selected: selected,
+                  ),
+                ),
+              ),
+              if (crops.isNotEmpty && !compact)
+                Positioned.fill(
+                  top: 27,
+                  left: 5,
+                  right: 5,
+                  bottom: activity.hasActivity ? 30 : 5,
+                  child: _BedCropGardenPreview(crops: crops),
+                ),
+              if (activity.hasActivity && constraints.maxHeight >= 42)
+                Positioned(
+                  left: 4,
+                  bottom: 4,
+                  right: 4,
+                  child: _BedActivityIconStrip(activity: activity),
+                ),
+            ],
+          );
+        },
+      );
+}
+
+class _OperationalBedMapContent extends StatelessWidget {
+  const _OperationalBedMapContent({
+    required this.bed,
+    required this.selected,
+    required this.crops,
+    required this.activity,
+  });
+
+  final GardenBed bed;
+  final bool selected;
+  final List<VegetableDefinition> crops;
+  final BedMapActivity activity;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final compact =
+              constraints.maxWidth < 46 || constraints.maxHeight < 42;
+          return Stack(
+            children: [
+              Positioned(
+                top: 5,
+                left: 5,
+                right: selected ? 25 : 5,
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: _BedMapTitle(
+                    title: compact ? '${bed.number}' : bed.label,
+                    selected: selected,
+                  ),
+                ),
+              ),
+              if (crops.isNotEmpty)
+                Positioned.fill(
+                  top: compact ? 20 : 28,
+                  bottom: activity.hasActivity ? 28 : 5,
+                  left: 5,
+                  right: 5,
+                  child: _BedCropGardenPreview(crops: crops),
+                ),
+              if (activity.hasActivity)
+                Positioned(
+                  left: 5,
+                  right: 5,
+                  bottom: 5,
+                  child: _BedActivityIconStrip(activity: activity),
+                ),
+            ],
+          );
+        },
+      );
 }
 
 class _BedSurfacePainter extends CustomPainter {
@@ -1032,7 +1131,7 @@ class _BedMapTitle extends StatelessWidget {
         ),
         child: Text(
           title,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,
           style: const TextStyle(
@@ -1247,14 +1346,17 @@ class GardenMapFrame extends StatelessWidget {
           boxShadow: softShadow,
         ),
         clipBehavior: Clip.antiAlias,
-        child: Stack(
+        child: Column(
           children: [
-            Positioned.fill(child: child),
-            const Positioned(
-              left: 10,
-              right: 10,
-              bottom: 10,
-              child: GardenMapLegend(),
+            Expanded(child: child),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              decoration: BoxDecoration(
+                color: C.card.withValues(alpha: .62),
+                border: const Border(top: BorderSide(color: C.line)),
+              ),
+              child: const GardenMapLegend(),
             ),
           ],
         ),
