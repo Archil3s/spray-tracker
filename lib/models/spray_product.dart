@@ -45,7 +45,8 @@ class SprayProduct {
         category: json['category'] as String? ?? '',
         commonUses: _stringList(json['commonUses']),
         suitableCrops: _stringList(json['suitableCrops']),
-        reSprayIntervalDays: (json['reSprayIntervalDays'] as num?)?.toInt() ?? 0,
+        reSprayIntervalDays:
+            (json['reSprayIntervalDays'] as num?)?.toInt() ?? 0,
         acvmRegistrationNumber: json['acvmRegistrationNumber'] as String? ?? '',
         source: json['source'] as String? ?? '',
         notes: json['notes'] as String? ?? '',
@@ -102,9 +103,26 @@ class SprayProduct {
   List<String> get targets {
     final lower = '$type ${commonUses.join(' ')}'.toLowerCase();
     final result = <String>{};
-    if (lower.contains('fung') || lower.contains('mildew') || lower.contains('rust') || lower.contains('blight')) result.add('fungus');
-    if (lower.contains('insect') || lower.contains('aphid') || lower.contains('mite') || lower.contains('whitefly') || lower.contains('thrip') || lower.contains('scale') || lower.contains('caterpillar')) result.add('pest');
-    if (lower.contains('plant health') || lower.contains('tonic') || lower.contains('stress')) result.add('maintain');
+    if (lower.contains('fung') ||
+        lower.contains('mildew') ||
+        lower.contains('rust') ||
+        lower.contains('blight')) {
+      result.add('fungus');
+    }
+    if (lower.contains('insect') ||
+        lower.contains('aphid') ||
+        lower.contains('mite') ||
+        lower.contains('whitefly') ||
+        lower.contains('thrip') ||
+        lower.contains('scale') ||
+        lower.contains('caterpillar')) {
+      result.add('pest');
+    }
+    if (lower.contains('plant health') ||
+        lower.contains('tonic') ||
+        lower.contains('stress')) {
+      result.add('maintain');
+    }
     if (result.isEmpty) result.add('prevent');
     return result.toList();
   }

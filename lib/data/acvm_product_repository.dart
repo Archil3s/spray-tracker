@@ -32,14 +32,18 @@ class AcvmProductRepository {
     final products = await getAll();
     final query = pest.trim().toLowerCase();
     if (query.isEmpty) return products;
-    return products.where((product) => product.matchesUse(query)).toList(growable: false);
+    return products
+        .where((product) => product.matchesUse(query))
+        .toList(growable: false);
   }
 
   Future<List<SprayProduct>> searchByCrop(String crop) async {
     final products = await getAll();
     final query = crop.trim().toLowerCase();
     if (query.isEmpty) return products;
-    return products.where((product) => product.matchesCrop(query)).toList(growable: false);
+    return products
+        .where((product) => product.matchesCrop(query))
+        .toList(growable: false);
   }
 
   Future<SprayProduct?> getById(String id) async {

@@ -34,14 +34,16 @@ class OpenFarmCrop {
 
     final name = _string(attrs, ['name']);
     final slug = _string(attrs, ['slug']);
-    final imageUrl = _normaliseUrl(_string(attrs, [
-      'main_image_url',
-      'mainImageUrl',
-      'main_image_path',
-      'mainImagePath',
-      'image_url',
-      'imageUrl',
-    ]));
+    final imageUrl = _normaliseUrl(
+      _string(attrs, [
+        'main_image_url',
+        'mainImageUrl',
+        'main_image_path',
+        'mainImagePath',
+        'image_url',
+        'imageUrl',
+      ]),
+    );
 
     return OpenFarmCrop(
       name: name,
@@ -63,8 +65,9 @@ class OpenFarmCrop {
       if (value == null) continue;
       if (value is String) return value.trim();
       if (value is num) return value.toString();
-      if (value is Map && value['value'] != null)
+      if (value is Map && value['value'] != null) {
         return value['value'].toString().trim();
+      }
     }
     return '';
   }
