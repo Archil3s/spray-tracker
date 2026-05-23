@@ -549,6 +549,7 @@ class _GardenBedCropPanel extends StatelessWidget {
     required this.gardenRisks,
     required this.spraySummary,
     required this.onAddCrop,
+    required this.onOpenPlanner,
     required this.onRemoveCrop,
     required this.onStartSpray,
   });
@@ -560,6 +561,7 @@ class _GardenBedCropPanel extends StatelessWidget {
   final Future<GardenRiskSummary> gardenRisks;
   final BedSpraySummary spraySummary;
   final VoidCallback onAddCrop;
+  final VoidCallback onOpenPlanner;
   final ValueChanged<VegetableDefinition> onRemoveCrop;
   final VoidCallback onStartSpray;
 
@@ -619,6 +621,11 @@ class _GardenBedCropPanel extends StatelessWidget {
               gardenRisks: gardenRisks,
             ),
             const SizedBox(height: 14),
+            SecondaryButton(
+              label: 'Open spacing planner',
+              onPressed: onOpenPlanner,
+            ),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(

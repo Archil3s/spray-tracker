@@ -43,9 +43,9 @@ class _BedPlantingCanvas extends StatelessWidget {
         height: height,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: C.card,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: C.line),
+          color: const Color(0xFFF6F1E8),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFC4AA87), width: 1.4),
         ),
         child: Stack(
           children: [
@@ -86,9 +86,9 @@ class _BedPlantingCanvas extends StatelessWidget {
         key: const ValueKey('bed-planting-surface'),
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: C.soft,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: C.soil, width: 1.2),
+          color: const Color(0xFFDCEEB7),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: C.soil, width: 2),
         ),
         child: Stack(
           children: [
