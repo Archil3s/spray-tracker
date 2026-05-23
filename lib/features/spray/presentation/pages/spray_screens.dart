@@ -91,14 +91,8 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
         const SizedBox(height: 18),
         const SectionTitle('Beds sprayed'),
         const SizedBox(height: 8),
-        Container(
-          height: 360,
-          decoration: BoxDecoration(
-            color: C.soft,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: C.line),
-          ),
-          clipBehavior: Clip.antiAlias,
+        GardenMapFrame(
+          height: 380,
           child: GardenMap(
             selectedBed: beds.isEmpty ? -1 : beds.first,
             selectedBeds: beds,

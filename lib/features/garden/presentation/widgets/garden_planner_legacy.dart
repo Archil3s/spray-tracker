@@ -875,55 +875,68 @@ class BedButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          decoration: BoxDecoration(
-            color: hold
-                ? C.amberSoft
-                : crops.isEmpty
-                    ? C.card
-                    : C.forestSoft,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: selected ? C.forest : C.soil,
-              width: selected ? 2.4 : 1.2,
-            ),
-          ),
+  Widget build(BuildContext context) {
+    final fill = hold
+        ? const Color(0xFFFFF4DF)
+        : crops.isEmpty
+            ? const Color(0xFFF4E8D6)
+            : const Color(0xFFE7F1DC);
+    final border = selected
+        ? C.forest
+        : hold
+            ? C.amber
+            : C.soil.withValues(alpha: .42);
+    final title = designing ? '${bed.label}\n${bed.sizeLabel}' : bed.label;
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: border, width: selected ? 2.5 : 1.15),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: C.forest.withValues(alpha: .18),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : const [],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(7),
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              Center(
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _BedSurfacePainter(
+                    planted: crops.isNotEmpty,
+                    hold: hold,
+                  ),
+                ),
+              ),
+              Positioned.fill(
                 child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          designing
-                              ? '${bed.label}\n${bed.sizeLabel}'
-                              : bed.label,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: C.ink,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 12,
-                          ),
+                  padding: const EdgeInsets.all(5),
+                  child: Column(
+                    children: [
+                      _BedMapTitle(title: title, selected: selected),
+                      if (!designing && crops.isNotEmpty) ...[
+                        const Spacer(),
+                        _BedCropGardenPreview(crops: crops),
+                        const Spacer(),
+                      ] else
+                        const Spacer(),
+                      if (activity.hasActivity)
+                        Align(
+                          alignment: Alignment.bottomLeft,
+                          child: _BedActivityIconStrip(activity: activity),
                         ),
-                        if (!designing && crops.isNotEmpty) ...[
-                          const SizedBox(height: 3),
-                          _BedCropIconStrip(crops: crops),
-                        ],
-                        if (!designing && activity.hasActivity) ...[
-                          const SizedBox(height: 3),
-                          _BedActivityIconStrip(activity: activity),
-                        ],
-                      ],
-                    ),
+                    ],
                   ),
                 ),
               ),
@@ -932,34 +945,260 @@ class BedButton extends StatelessWidget {
                   top: 4,
                   right: 4,
                   child: Container(
-                    width: 15,
-                    height: 15,
+                    width: 18,
+                    height: 18,
                     decoration: BoxDecoration(
                       color: C.forest,
                       borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: C.card, width: 1.5),
+                      border: Border.all(color: C.card, width: 1.7),
+                      boxShadow: [
+                        BoxShadow(
+                          color: C.forest.withValues(alpha: .20),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
                     child: const Icon(
                       CupertinoIcons.check_mark,
                       color: CupertinoColors.white,
-                      size: 10,
+                      size: 11,
                     ),
                   ),
                 ),
-              if (designing && activity.hasActivity)
-                Positioned(
-                  bottom: 4,
-                  left: 4,
-                  child: _BedActivityIconStrip(activity: activity),
-                ),
               if (designing && crops.isNotEmpty)
                 Positioned(
-                  top: -12,
-                  right: -12,
+                  top: -11,
+                  right: -11,
                   child: IconCluster(crops: crops),
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BedSurfacePainter extends CustomPainter {
+  const _BedSurfacePainter({required this.planted, required this.hold});
+
+  final bool planted;
+  final bool hold;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final base = Paint()
+      ..color = hold
+          ? const Color(0xFFFFEAC2)
+          : planted
+              ? const Color(0xFFD9E8C9)
+              : const Color(0xFFE8D4B8);
+    canvas.drawRect(Offset.zero & size, base);
+
+    final rowPaint = Paint()
+      ..color = (planted ? C.forest : C.soil).withValues(alpha: .10)
+      ..strokeWidth = 1;
+    final rowCount = (size.height / 13).clamp(2, 8).round();
+    for (var index = 1; index < rowCount; index++) {
+      final y = size.height * index / rowCount;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), rowPaint);
+    }
+
+    final edge = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = C.soil.withValues(alpha: .18);
+    canvas.drawRect(
+      Rect.fromLTWH(1, 1, size.width - 2, size.height - 2),
+      edge,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _BedSurfacePainter oldDelegate) =>
+      planted != oldDelegate.planted || hold != oldDelegate.hold;
+}
+
+class _BedMapTitle extends StatelessWidget {
+  const _BedMapTitle({required this.title, required this.selected});
+
+  final String title;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(maxWidth: 96),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: C.card.withValues(alpha: selected ? .92 : .76),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: C.ink,
+            fontWeight: FontWeight.w900,
+            fontSize: 10.5,
+            height: 1.05,
+          ),
+        ),
+      );
+}
+
+class _BedCropGardenPreview extends StatelessWidget {
+  const _BedCropGardenPreview({required this.crops});
+
+  final List<VegetableDefinition> crops;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 4,
+        runSpacing: 3,
+        children: [
+          ...crops.take(6).map((crop) => CropIcon(crop.iconPath, size: 24)),
+          if (crops.length > 6)
+            Container(
+              width: 24,
+              height: 24,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: C.card.withValues(alpha: .84),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '+${crops.length - 6}',
+                style: const TextStyle(
+                  color: C.forest,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+        ],
+      );
+}
+
+class GardenMapLegend extends StatelessWidget {
+  const GardenMapLegend({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _MapLegendItem(color: C.forest, label: 'Planted'),
+          _MapLegendItem(color: C.amber, label: 'Hold'),
+          _MapLegendIcon(icon: CupertinoIcons.drop, label: 'Spray'),
+          _MapLegendIcon(
+            icon: CupertinoIcons.leaf_arrow_circlepath,
+            label: 'Feed',
+          ),
+        ],
+      );
+}
+
+class _MapLegendItem extends StatelessWidget {
+  const _MapLegendItem({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: C.card.withValues(alpha: .86),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: C.line),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: const TextStyle(
+                color: C.muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _MapLegendIcon extends StatelessWidget {
+  const _MapLegendIcon({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: C.card.withValues(alpha: .86),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: C.line),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: C.forest),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: const TextStyle(
+                color: C.muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class GardenMapFrame extends StatelessWidget {
+  const GardenMapFrame({required this.child, this.height = 380, super.key});
+
+  final Widget child;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFE7D8),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: C.line),
+          boxShadow: softShadow,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
+            Positioned.fill(child: child),
+            const Positioned(
+              left: 10,
+              right: 10,
+              bottom: 10,
+              child: GardenMapLegend(),
+            ),
+          ],
         ),
       );
 }
@@ -997,34 +1236,6 @@ BedMapActivity _bedMapActivity(List<SprayRecord> records, int bed) {
     }
   }
   return BedMapActivity(latestSpray: latestSpray, latestFeed: latestFeed);
-}
-
-class _BedCropIconStrip extends StatelessWidget {
-  const _BedCropIconStrip({required this.crops});
-
-  final List<VegetableDefinition> crops;
-
-  @override
-  Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ...crops.take(4).map(
-                (crop) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 1),
-                  child: CropIcon(crop.iconPath, size: 17),
-                ),
-              ),
-          if (crops.length > 4)
-            Text(
-              '+${crops.length - 4}',
-              style: const TextStyle(
-                color: C.forest,
-                fontSize: 10,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-        ],
-      );
 }
 
 class _BedActivityIconStrip extends StatelessWidget {

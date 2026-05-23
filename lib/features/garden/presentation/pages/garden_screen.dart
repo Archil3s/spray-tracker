@@ -264,14 +264,8 @@ class _GardenOutlinePanel extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              Container(
-                height: 420,
-                decoration: BoxDecoration(
-                  color: C.soft,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: C.line),
-                ),
-                clipBehavior: Clip.antiAlias,
+              GardenMapFrame(
+                height: 430,
                 child: GardenMap(
                   selectedBed: selectedBed.number,
                   plot: plot,
