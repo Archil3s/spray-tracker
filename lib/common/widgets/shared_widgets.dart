@@ -15,11 +15,11 @@ class BottomNav extends StatelessWidget {
       NavSpec('Protect', CupertinoIcons.shield),
     ];
     return Container(
-      margin: const EdgeInsets.fromLTRB(14, 6, 14, 12),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+      margin: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
       decoration: BoxDecoration(
         color: C.card,
-        borderRadius: BorderRadius.circular(31),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: C.line),
         boxShadow: softShadow,
       ),
@@ -27,16 +27,16 @@ class BottomNav extends StatelessWidget {
         children: List.generate(items.length, (index) {
           final selected = index == tab;
           return Expanded(
-            child: CupertinoButton(
-              padding: EdgeInsets.zero,
-              minimumSize: Size.zero,
-              onPressed: () => onTap(index),
+            child: SmoothTap(
+              onTap: () => onTap(index),
+              scale: .94,
+              semanticsLabel: items[index].label,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 160),
-                    width: 38,
+                    width: 40,
                     height: 34,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
@@ -76,18 +76,122 @@ class NavSpec {
   final IconData icon;
 }
 
+class SmoothTap extends StatefulWidget {
+  const SmoothTap({
+    required this.child,
+    this.onTap,
+    this.scale = .975,
+    this.duration = const Duration(milliseconds: 90),
+    this.semanticsLabel,
+    super.key,
+  });
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final double scale;
+  final Duration duration;
+  final String? semanticsLabel;
+
+  @override
+  State<SmoothTap> createState() => _SmoothTapState();
+}
+
+class _SmoothTapState extends State<SmoothTap> {
+  bool pressed = false;
+
+  void _setPressed(bool value) {
+    if (pressed == value || widget.onTap == null) return;
+    setState(() => pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: widget.onTap != null,
+        label: widget.semanticsLabel,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          onTapDown: (_) => _setPressed(true),
+          onTapUp: (_) => _setPressed(false),
+          onTapCancel: () => _setPressed(false),
+          child: AnimatedScale(
+            scale: pressed ? widget.scale : 1,
+            duration: widget.duration,
+            curve: Curves.easeOutCubic,
+            child: AnimatedOpacity(
+              opacity: widget.onTap == null ? .48 : 1,
+              duration: widget.duration,
+              curve: Curves.easeOutCubic,
+              child: widget.child,
+            ),
+          ),
+        ),
+      );
+}
+
+class SmoothIndexedStack extends StatelessWidget {
+  const SmoothIndexedStack({
+    required this.index,
+    required this.children,
+    super.key,
+  });
+
+  final int index;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+        children: [
+          for (var item = 0; item < children.length; item++)
+            Positioned.fill(
+              child: IgnorePointer(
+                ignoring: item != index,
+                child: ExcludeSemantics(
+                  excluding: item != index,
+                  child: AnimatedOpacity(
+                    opacity: item == index ? 1 : 0,
+                    duration: const Duration(milliseconds: 170),
+                    curve: Curves.easeOutCubic,
+                    child: TickerMode(
+                      enabled: item == index,
+                      child: RepaintBoundary(child: children[item]),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+}
+
 class RecordCard extends StatelessWidget {
-  const RecordCard({required this.record, this.onDelete, super.key});
+  const RecordCard({
+    required this.record,
+    this.onDelete,
+    this.onTap,
+    this.highlighted = false,
+    super.key,
+  });
   final SprayRecord record;
   final VoidCallback? onDelete;
+  final VoidCallback? onTap;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
     final target = targetById(record.targetId);
-    return Container(
+    final card = Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: cardDecoration(),
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: highlighted ? C.forestSoft : C.card,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: highlighted ? C.forest : C.line,
+          width: highlighted ? 1.8 : 1,
+        ),
+        boxShadow: softShadow,
+      ),
       child: Row(
         children: [
           Container(
@@ -142,6 +246,7 @@ class RecordCard extends StatelessWidget {
         ],
       ),
     );
+    return SmoothTap(onTap: onTap, child: card);
   }
 }
 
@@ -159,34 +264,43 @@ class AppPage extends StatelessWidget {
   final String message;
 
   @override
-  Widget build(BuildContext context) => ListView(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 26),
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 34,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -1.1,
-              color: C.forest,
-            ),
+  Widget build(BuildContext context) => SafeArea(
+        bottom: false,
+        child: ListView(
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
           ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: const TextStyle(
-              fontSize: 14,
-              color: C.muted,
-              fontWeight: FontWeight.w700,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 44),
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+                color: C.forest,
+                height: 1,
+              ),
             ),
-          ),
-          const SizedBox(height: 18),
-          if (message.isNotEmpty) ...[
-            MessageBanner(message),
-            const SizedBox(height: 12),
+            const SizedBox(height: 7),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                fontSize: 14,
+                color: C.muted,
+                fontWeight: FontWeight.w700,
+                height: 1.3,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (message.isNotEmpty) ...[
+              MessageBanner(message),
+              const SizedBox(height: 12),
+            ],
+            ...children,
           ],
-          ...children,
-        ],
+        ),
       );
 }
 
@@ -195,15 +309,27 @@ class MessageBanner extends StatelessWidget {
   final String message;
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
           color: C.forestSoft,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: C.line),
         ),
-        child: Text(
-          message,
-          style: const TextStyle(color: C.forest, fontWeight: FontWeight.w900),
+        child: Row(
+          children: [
+            const Icon(CupertinoIcons.checkmark_seal,
+                color: C.forest, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: C.forest,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
         ),
       );
 }
@@ -217,8 +343,11 @@ class Panel extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
   @override
-  Widget build(BuildContext context) =>
-      Container(padding: padding, decoration: cardDecoration(), child: child);
+  Widget build(BuildContext context) => Container(
+        padding: padding,
+        decoration: cardDecoration(),
+        child: child,
+      );
 }
 
 class SectionTitle extends StatelessWidget {
@@ -232,9 +361,10 @@ class SectionTitle extends StatelessWidget {
             child: Text(
               text,
               style: const TextStyle(
-                fontSize: 17,
+                fontSize: 18,
                 fontWeight: FontWeight.w900,
                 color: C.forest,
+                height: 1.05,
               ),
             ),
           ),
@@ -260,10 +390,10 @@ class EmptyInline extends StatelessWidget {
   final String text;
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
           color: C.soft,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: C.line),
         ),
         child: Text(
@@ -342,8 +472,8 @@ class PrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) => CupertinoButton(
         color: C.forest,
         disabledColor: C.line,
-        borderRadius: BorderRadius.circular(16),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+        borderRadius: BorderRadius.circular(14),
+        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
         onPressed: onPressed,
         child: Text(
           label,
@@ -367,8 +497,8 @@ class SecondaryButton extends StatelessWidget {
   Widget build(BuildContext context) => CupertinoButton(
         color: C.forestSoft,
         disabledColor: C.soft,
-        borderRadius: BorderRadius.circular(16),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+        borderRadius: BorderRadius.circular(14),
+        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
         onPressed: onPressed,
         child: Text(
           label,
@@ -395,10 +525,10 @@ class NumberChip extends StatelessWidget {
         padding: EdgeInsets.zero,
         onPressed: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
           decoration: BoxDecoration(
             color: selected ? C.forest : C.card,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: selected ? C.forest : C.line),
           ),
           child: Text(
@@ -423,6 +553,11 @@ class StatusPill extends StatelessWidget {
         decoration: BoxDecoration(
           color: hold ? C.amberSoft : C.forestSoft,
           borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: hold
+                ? C.amber.withValues(alpha: .14)
+                : C.forest.withValues(alpha: .14),
+          ),
         ),
         child: Text(
           label,
@@ -448,10 +583,11 @@ class ProductTag extends StatelessWidget {
   final Color background;
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: background,
           borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: .12)),
         ),
         child: Text(
           label,
@@ -503,10 +639,16 @@ class Field extends StatelessWidget {
         controller: controller,
         placeholder: placeholder,
         maxLines: maxLines,
-        padding: const EdgeInsets.all(13),
+        padding: const EdgeInsets.all(14),
+        cursorColor: C.forest,
+        placeholderStyle: const TextStyle(
+          color: Color(0xFFB1B8AC),
+          fontWeight: FontWeight.w700,
+        ),
+        style: const TextStyle(color: C.ink, fontWeight: FontWeight.w800),
         decoration: BoxDecoration(
           color: C.card,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: C.line),
         ),
       );
@@ -526,10 +668,10 @@ class Stepper extends StatelessWidget {
   final VoidCallback? plus;
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
           color: C.soft,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: C.line),
         ),
         child: Row(
@@ -586,7 +728,7 @@ class TextChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: C.card,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: C.line),
+          border: Border.all(color: C.line.withValues(alpha: .9)),
         ),
         child: Text(
           label,
@@ -697,22 +839,19 @@ class TargetGrid extends StatelessWidget {
   final String selected;
   final ValueChanged<String> onSelect;
   @override
-  Widget build(BuildContext context) => GridView.count(
-        crossAxisCount: 4,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: .98,
-        children: sprayTargets
-            .map(
-              (target) => TargetButton(
+  Widget build(BuildContext context) => Row(
+        children: [
+          for (final target in sprayTargets) ...[
+            Expanded(
+              child: TargetButton(
                 target: target,
                 selected: selected == target.id,
                 onTap: () => onSelect(target.id),
               ),
-            )
-            .toList(),
+            ),
+            if (target != sprayTargets.last) const SizedBox(width: 8),
+          ],
+        ],
       );
 }
 
@@ -727,24 +866,38 @@ class TargetButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+  Widget build(BuildContext context) => SmoothTap(
+        onTap: onTap,
+        semanticsLabel: target.short,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          height: 72,
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
           decoration: BoxDecoration(
             color: selected ? target.softColor : C.card,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: selected ? target.color : C.line,
-              width: selected ? 1.8 : 1,
+              width: selected ? 1.6 : 1,
             ),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(target.icon, color: target.color, size: 22),
-              const SizedBox(height: 5),
+              Container(
+                width: 30,
+                height: 30,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? C.card.withValues(alpha: .82)
+                      : target.softColor.withValues(alpha: .7),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Icon(target.icon, color: target.color, size: 18),
+              ),
+              const SizedBox(height: 6),
               FittedBox(
                 child: Text(
                   target.short,

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spray_tracker/crop_library.dart';
+import 'package:spray_tracker/data/local_garden_repository.dart';
 import 'package:spray_tracker/main.dart';
 import 'package:spray_tracker/models/garden_snapshot.dart';
 import 'package:spray_tracker/models/openfarm_crop.dart';
@@ -262,6 +263,31 @@ void main() {
       );
     });
 
+    test('groups spray and feed actions by every planted bed', () {
+      final items = generatePreventativeCalendar(
+        beds: const [
+          GardenBed(1, Rect.fromLTWH(.10, .10, .20, .20)),
+          GardenBed(2, Rect.fromLTWH(.40, .10, .20, .20)),
+        ],
+        bedCrops: {
+          1: [_crop('tomato')],
+          2: [_crop('lettuce')],
+        },
+        records: const [],
+        products: [_product()],
+        now: DateTime(2026, 5, 22),
+      );
+
+      final schedules = groupProtectionCalendarByBed(items);
+
+      expect(schedules.map((schedule) => schedule.bed.number), [1, 2]);
+      expect(schedules.expand((schedule) => schedule.items), hasLength(6));
+      expect(
+          schedules.every((schedule) => schedule.feedActionCount == 1), isTrue);
+      expect(schedules.every((schedule) => schedule.sprayActionCount == 2),
+          isTrue);
+    });
+
     test('blocks spray calendar items while bed is on withholding hold', () {
       final items = generatePreventativeCalendar(
         beds: const [GardenBed(1, Rect.fromLTWH(.10, .10, .20, .20))],
@@ -376,6 +402,103 @@ void main() {
     });
   });
 
+  group('Spray advisor', () {
+    test('suggests likely issues from selected crops', () {
+      final suggestions = buildSprayAgainstSuggestions(
+        crops: [_crop('tomato'), _crop('lettuce')],
+        targetId: 'pest',
+        products: [_product()],
+      );
+
+      final aphids = suggestions.firstWhere(
+        (suggestion) => suggestion.issue == 'Aphids',
+      );
+
+      expect(aphids.crops.map((crop) => crop.id), contains('tomato'));
+      expect(aphids.crops.map((crop) => crop.id), contains('lettuce'));
+      expect(aphids.product?.id, 'copper_fungus_control');
+    });
+
+    test('ranks products by target issue and crop fit', () {
+      const supportProduct = SprayProduct(
+        id: 'seaweed',
+        name: 'Seaweed tonic',
+        brand: 'Test',
+        type: 'Plant health',
+        activeIngredient: 'Seaweed',
+        withholdingDays: 0,
+        withholdingNote: 'Test only',
+        reEntryHours: 0,
+        category: 'organic',
+        commonUses: ['plant stress'],
+        suitableCrops: ['vegetables'],
+        reSprayIntervalDays: 14,
+        acvmRegistrationNumber: '',
+        source: 'Test',
+        notes: '',
+      );
+
+      final ranked = rankedSprayProductsForSpray(
+        targetId: 'pest',
+        issue: 'Aphids',
+        crops: [_crop('tomato')],
+        products: [supportProduct, _product()],
+      );
+
+      expect(ranked.first.id, 'copper_fungus_control');
+    });
+
+    test('summarizes selected product coverage', () {
+      const tomatoOnly = SprayProduct(
+        id: 'tomato_psyllid',
+        name: 'Tomato Psyllid Spray',
+        brand: 'Test',
+        type: 'Insecticide',
+        activeIngredient: 'Pyrethrin',
+        withholdingDays: 1,
+        withholdingNote: 'Test only',
+        reEntryHours: 1,
+        category: 'organic',
+        commonUses: ['psyllid'],
+        suitableCrops: ['tomato'],
+        reSprayIntervalDays: 7,
+        acvmRegistrationNumber: '',
+        source: 'Test',
+        notes: '',
+      );
+
+      final coverage = summarizeSprayCoverage(
+        product: tomatoOnly,
+        targetId: 'pest',
+        crops: [_crop('tomato'), _crop('garlic')],
+      );
+
+      expect(coverage.targetMatched, isTrue);
+      expect(coverage.coveredCrops.map((crop) => crop.id), ['tomato']);
+      expect(coverage.unmatchedCrops.map((crop) => crop.id), ['garlic']);
+    });
+
+    test('warns when repeat product is inside the re-spray interval', () {
+      final advice = sprayRotationAdvice(
+        product: _product(),
+        records: [
+          _record(
+            id: 1,
+            date: DateTime(2026, 5, 20),
+            withholdingDays: 0,
+            productId: 'copper_fungus_control',
+          ),
+        ],
+        products: [_product()],
+        beds: const [1],
+        now: DateTime(2026, 5, 22),
+      );
+
+      expect(advice?.caution, isTrue);
+      expect(advice?.nextAllowedDate, DateTime(2026, 5, 27));
+    });
+  });
+
   group('GardenSnapshot', () {
     test('round-trips local garden data', () {
       final snapshot = GardenSnapshot(
@@ -438,6 +561,37 @@ void main() {
       expect(restored.plants.single.x, .24);
       expect(restored.plotWidthMeters, 10.5);
       expect(restored.plotLengthMeters, 14);
+    });
+
+    test('encodes and decodes portable backup data', () {
+      final snapshot = GardenSnapshot(
+        nextRecordId: 3,
+        bedCropIds: const {
+          1: ['tomato'],
+        },
+        records: [
+          StoredSprayRecord(
+            id: 2,
+            beds: const [1],
+            crops: const ['Tomato'],
+            targetId: 'pest',
+            product: 'Neem',
+            productId: 'neem',
+            reason: 'Aphids',
+            notes: 'Copied backup',
+            date: DateTime(2026, 5, 22),
+            days: 1,
+          ),
+        ],
+      );
+
+      final backup = encodeGardenSnapshot(snapshot);
+      final restored = decodeGardenSnapshot(backup);
+
+      expect(restored?.nextRecordId, 3);
+      expect(restored?.bedCropIds[1], ['tomato']);
+      expect(restored?.records.single.reason, 'Aphids');
+      expect(decodeGardenSnapshot('not json'), isNull);
     });
   });
 

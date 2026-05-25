@@ -4,6 +4,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/garden_snapshot.dart';
 
+String encodeGardenSnapshot(GardenSnapshot snapshot) =>
+    const JsonEncoder.withIndent('  ').convert(snapshot.toJson());
+
+GardenSnapshot? decodeGardenSnapshot(String raw) {
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) return null;
+    return GardenSnapshot.fromJson(Map<String, dynamic>.from(decoded));
+  } catch (_) {
+    return null;
+  }
+}
+
 class LocalGardenRepository {
   LocalGardenRepository({SharedPreferencesAsync? preferences})
       : _preferences = preferences ?? SharedPreferencesAsync();
@@ -18,14 +31,9 @@ class LocalGardenRepository {
     final raw = await _preferences.getString(_snapshotKey);
     if (raw == null || raw.isEmpty) return null;
 
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map<String, dynamic>) {
-      return null;
-    }
-
-    return GardenSnapshot.fromJson(decoded);
+    return decodeGardenSnapshot(raw);
   }
 
   Future<void> save(GardenSnapshot snapshot) =>
-      _preferences.setString(_snapshotKey, jsonEncode(snapshot.toJson()));
+      _preferences.setString(_snapshotKey, encodeGardenSnapshot(snapshot));
 }

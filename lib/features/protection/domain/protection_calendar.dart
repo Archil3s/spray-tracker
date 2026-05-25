@@ -32,6 +32,58 @@ class PreventativeCalendarItem {
   final SprayRecord? lastRecord;
 }
 
+class BedProtectionSchedule {
+  const BedProtectionSchedule({
+    required this.bed,
+    required this.items,
+  });
+
+  final GardenBed bed;
+  final List<PreventativeCalendarItem> items;
+
+  int get dueCount =>
+      items.where((item) => item.status == ProtectionStatus.due).length;
+
+  int get soonCount =>
+      items.where((item) => item.status == ProtectionStatus.soon).length;
+
+  int get blockedCount =>
+      items.where((item) => item.status == ProtectionStatus.blocked).length;
+
+  int get actionCount => dueCount + soonCount + blockedCount;
+
+  int get feedActionCount => items
+      .where(
+        (item) =>
+            item.target == ProtectionTarget.feed &&
+            (item.status == ProtectionStatus.due ||
+                item.status == ProtectionStatus.soon),
+      )
+      .length;
+
+  int get sprayActionCount => items
+      .where(
+        (item) =>
+            item.target != ProtectionTarget.feed &&
+            (item.status == ProtectionStatus.due ||
+                item.status == ProtectionStatus.soon ||
+                item.status == ProtectionStatus.blocked),
+      )
+      .length;
+
+  DateTime get nextDueDate =>
+      items.map((item) => item.dueDate).reduce((a, b) => a.isBefore(b) ? a : b);
+
+  List<PreventativeCalendarItem> get requiredItems => items
+      .where(
+        (item) =>
+            item.status == ProtectionStatus.due ||
+            item.status == ProtectionStatus.soon ||
+            item.status == ProtectionStatus.blocked,
+      )
+      .toList(growable: false);
+}
+
 class CropIssueProfile {
   const CropIssueProfile({
     required this.name,
@@ -111,6 +163,42 @@ List<PreventativeCalendarItem> generatePreventativeCalendar({
     return a.bed.number.compareTo(b.bed.number);
   });
   return items;
+}
+
+List<BedProtectionSchedule> groupProtectionCalendarByBed(
+  List<PreventativeCalendarItem> items,
+) {
+  final bedsByNumber = <int, GardenBed>{};
+  final grouped = <int, List<PreventativeCalendarItem>>{};
+  for (final item in items) {
+    bedsByNumber[item.bed.number] = item.bed;
+    grouped.putIfAbsent(item.bed.number, () => []).add(item);
+  }
+
+  final schedules = [
+    for (final entry in grouped.entries)
+      BedProtectionSchedule(
+        bed: bedsByNumber[entry.key]!,
+        items: List.unmodifiable(entry.value
+          ..sort((a, b) {
+            final status =
+                _statusRank(a.status).compareTo(_statusRank(b.status));
+            if (status != 0) return status;
+            final date = a.dueDate.compareTo(b.dueDate);
+            if (date != 0) return date;
+            final crop = a.crop.name.compareTo(b.crop.name);
+            if (crop != 0) return crop;
+            return a.target.index.compareTo(b.target.index);
+          })),
+      ),
+  ]..sort((a, b) {
+      final action = b.actionCount.compareTo(a.actionCount);
+      if (action != 0) return action;
+      final date = a.nextDueDate.compareTo(b.nextDueDate);
+      if (date != 0) return date;
+      return a.bed.number.compareTo(b.bed.number);
+    });
+  return schedules;
 }
 
 List<CropIssueProfile> buildCropIssueProfiles({

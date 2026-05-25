@@ -1,6 +1,6 @@
 part of '../../../main.dart';
 
-enum _ProtectionView { calendar, pests, fungus, products }
+enum ProtectionView { calendar, pests, fungus, products }
 
 class ProtectionScreen extends StatefulWidget {
   const ProtectionScreen({
@@ -12,6 +12,8 @@ class ProtectionScreen extends StatefulWidget {
     required this.message,
     required this.gardenRisks,
     required this.onPlanSpray,
+    this.initialView = ProtectionView.calendar,
+    this.initialSearch = '',
     super.key,
   });
 
@@ -23,14 +25,32 @@ class ProtectionScreen extends StatefulWidget {
   final String message;
   final Future<GardenRiskSummary> gardenRisks;
   final VoidCallback onPlanSpray;
+  final ProtectionView initialView;
+  final String initialSearch;
 
   @override
   State<ProtectionScreen> createState() => _ProtectionScreenState();
 }
 
 class _ProtectionScreenState extends State<ProtectionScreen> {
-  _ProtectionView view = _ProtectionView.calendar;
+  late ProtectionView view = widget.initialView;
   final search = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    search.text = widget.initialSearch;
+  }
+
+  @override
+  void didUpdateWidget(covariant ProtectionScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialView != oldWidget.initialView ||
+        widget.initialSearch != oldWidget.initialSearch) {
+      view = widget.initialView;
+      search.text = widget.initialSearch;
+    }
+  }
 
   @override
   void dispose() {
@@ -44,22 +64,22 @@ class _ProtectionScreenState extends State<ProtectionScreen> {
         subtitle: 'Preventative calendar, pest pressure, fungus, and products.',
         message: widget.message,
         children: [
-          CupertinoSlidingSegmentedControl<_ProtectionView>(
+          CupertinoSlidingSegmentedControl<ProtectionView>(
             groupValue: view,
             children: const {
-              _ProtectionView.calendar: Padding(
+              ProtectionView.calendar: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 8),
                 child: Text('Calendar'),
               ),
-              _ProtectionView.pests: Padding(
+              ProtectionView.pests: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 8),
                 child: Text('Pests'),
               ),
-              _ProtectionView.fungus: Padding(
+              ProtectionView.fungus: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 8),
                 child: Text('Fungus'),
               ),
-              _ProtectionView.products: Padding(
+              ProtectionView.products: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 8),
                 child: Text('Products'),
               ),
@@ -73,7 +93,7 @@ class _ProtectionScreenState extends State<ProtectionScreen> {
             },
           ),
           const SizedBox(height: 14),
-          if (view == _ProtectionView.calendar)
+          if (view == ProtectionView.calendar)
             _ProtectionCalendarView(
               beds: widget.gardenBeds,
               bedCrops: widget.bedCrops,
@@ -82,7 +102,7 @@ class _ProtectionScreenState extends State<ProtectionScreen> {
               gardenRisks: widget.gardenRisks,
               onPlanSpray: widget.onPlanSpray,
             )
-          else if (view == _ProtectionView.pests)
+          else if (view == ProtectionView.pests)
             _IssueLibraryView(
               target: ProtectionTarget.pest,
               products: widget.products,
@@ -90,7 +110,7 @@ class _ProtectionScreenState extends State<ProtectionScreen> {
               search: search,
               onSearchChanged: () => setState(() {}),
             )
-          else if (view == _ProtectionView.fungus)
+          else if (view == ProtectionView.fungus)
             _IssueLibraryView(
               target: ProtectionTarget.fungus,
               products: widget.products,
@@ -146,6 +166,17 @@ class _ProtectionCalendarView extends StatelessWidget {
         final blocked = items
             .where((item) => item.status == ProtectionStatus.blocked)
             .length;
+        final feedDue = items
+            .where(
+              (item) =>
+                  item.target == ProtectionTarget.feed &&
+                  item.status == ProtectionStatus.due,
+            )
+            .length;
+        final schedules = groupProtectionCalendarByBed(items);
+        final requiredSchedules = schedules
+            .where((schedule) => schedule.actionCount > 0)
+            .toList(growable: false);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -170,9 +201,9 @@ class _ProtectionCalendarView extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: HeroMetric(
-                      label: 'ON HOLD',
-                      value: '$blocked',
-                      color: blocked > 0 ? C.red : C.forest,
+                      label: 'FEED DUE',
+                      value: '$feedDue',
+                      color: feedDue > 0 ? C.amber : C.forest,
                     ),
                   ),
                 ],
@@ -180,7 +211,7 @@ class _ProtectionCalendarView extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             SectionTitle(
-              'Preventative spray calendar',
+              'Spray and feed calendar',
               trailing: ProductTag(
                 label: risks == null
                     ? 'Weather loading'
@@ -198,13 +229,48 @@ class _ProtectionCalendarView extends StatelessWidget {
               const EmptyCard(
                 'Log vegetables in Garden first. The calendar is generated from what is actually planted.',
               )
-            else
-              ...items.take(28).map(
-                    (item) => _CalendarItemCard(
-                      item: item,
-                      onPlanSpray: onPlanSpray,
-                    ),
+            else ...[
+              _CalendarSummaryStrip(
+                bedCount: schedules.length,
+                sprayDue: due - feedDue,
+                feedDue: feedDue,
+                blocked: blocked,
+              ),
+              const SizedBox(height: 14),
+              SectionTitle(
+                'Required by bed',
+                trailing: Text(
+                  '${requiredSchedules.length}',
+                  style: const TextStyle(
+                    color: C.muted,
+                    fontWeight: FontWeight.w900,
                   ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (requiredSchedules.isEmpty)
+                const EmptyCard(
+                  'Nothing needs action right now. Upcoming checks are listed below.',
+                )
+              else
+                ...requiredSchedules.map(
+                  (schedule) => _BedScheduleCard(
+                    schedule: schedule,
+                    onPlanSpray: onPlanSpray,
+                    requiredOnly: true,
+                  ),
+                ),
+              const SizedBox(height: 14),
+              const SectionTitle('Upcoming by bed'),
+              const SizedBox(height: 8),
+              ...schedules.map(
+                (schedule) => _BedScheduleCard(
+                  schedule: schedule,
+                  onPlanSpray: onPlanSpray,
+                  requiredOnly: false,
+                ),
+              ),
+            ],
           ],
         );
       },
@@ -212,8 +278,189 @@ class _ProtectionCalendarView extends StatelessWidget {
   }
 }
 
-class _CalendarItemCard extends StatelessWidget {
-  const _CalendarItemCard({
+class _CalendarSummaryStrip extends StatelessWidget {
+  const _CalendarSummaryStrip({
+    required this.bedCount,
+    required this.sprayDue,
+    required this.feedDue,
+    required this.blocked,
+  });
+
+  final int bedCount;
+  final int sprayDue;
+  final int feedDue;
+  final int blocked;
+
+  @override
+  Widget build(BuildContext context) => Panel(
+        padding: const EdgeInsets.all(12),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ProductTag(
+              label: '$bedCount planted bed${bedCount == 1 ? '' : 's'}',
+              color: C.forest,
+              background: C.forestSoft,
+            ),
+            ProductTag(
+              label: '$sprayDue spray due',
+              color: sprayDue > 0 ? C.red : C.muted,
+              background: sprayDue > 0 ? C.redSoft : C.greySoft,
+            ),
+            ProductTag(
+              label: '$feedDue feed due',
+              color: feedDue > 0 ? C.amber : C.muted,
+              background: feedDue > 0 ? C.amberSoft : C.greySoft,
+            ),
+            if (blocked > 0)
+              ProductTag(
+                label: '$blocked on hold',
+                color: C.red,
+                background: C.redSoft,
+              ),
+          ],
+        ),
+      );
+}
+
+class _BedScheduleCard extends StatelessWidget {
+  const _BedScheduleCard({
+    required this.schedule,
+    required this.onPlanSpray,
+    required this.requiredOnly,
+  });
+
+  final BedProtectionSchedule schedule;
+  final VoidCallback onPlanSpray;
+  final bool requiredOnly;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleItems =
+        requiredOnly ? schedule.requiredItems : schedule.items.take(8).toList();
+    final hiddenCount = requiredOnly
+        ? 0
+        : schedule.items.length > visibleItems.length
+            ? schedule.items.length - visibleItems.length
+            : 0;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: cardDecoration(
+        color: schedule.actionCount > 0 ? C.card : C.soft,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: C.forestSoft,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  '${schedule.bed.number}',
+                  style: const TextStyle(
+                    color: C.forest,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      schedule.bed.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: C.ink,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      'Next check ${shortDate(schedule.nextDueDate)}',
+                      style: const TextStyle(
+                        color: C.muted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ProductTag(
+                label: schedule.actionCount == 0
+                    ? 'Scheduled'
+                    : '${schedule.actionCount} action',
+                color: schedule.actionCount == 0 ? C.muted : C.amber,
+                background:
+                    schedule.actionCount == 0 ? C.greySoft : C.amberSoft,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              ProductTag(
+                label: '${schedule.sprayActionCount} spray',
+                color: schedule.sprayActionCount > 0 ? C.red : C.muted,
+                background:
+                    schedule.sprayActionCount > 0 ? C.redSoft : C.greySoft,
+              ),
+              ProductTag(
+                label: '${schedule.feedActionCount} feed',
+                color: schedule.feedActionCount > 0 ? C.amber : C.muted,
+                background:
+                    schedule.feedActionCount > 0 ? C.amberSoft : C.greySoft,
+              ),
+              if (schedule.blockedCount > 0)
+                ProductTag(
+                  label: '${schedule.blockedCount} hold',
+                  color: C.red,
+                  background: C.redSoft,
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (visibleItems.isEmpty)
+            const EmptyInline('No due items for this bed.')
+          else
+            ...visibleItems.map(
+              (item) => _CalendarItemRow(
+                item: item,
+                onPlanSpray: onPlanSpray,
+              ),
+            ),
+          if (hiddenCount > 0) ...[
+            const SizedBox(height: 8),
+            Text(
+              '+$hiddenCount later checks',
+              style: const TextStyle(
+                color: C.muted,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CalendarItemRow extends StatelessWidget {
+  const _CalendarItemRow({
     required this.item,
     required this.onPlanSpray,
   });
@@ -222,83 +469,75 @@ class _CalendarItemCard extends StatelessWidget {
   final VoidCallback onPlanSpray;
 
   @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: _statusBackground(item.status),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: C.line),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+  Widget build(BuildContext context) {
+    final target = targetById(_targetId(item.target));
+    final canPlan = item.status == ProtectionStatus.due ||
+        item.status == ProtectionStatus.soon;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: _statusBackground(item.status),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: C.line),
+      ),
+      child: Row(
+        children: [
+          CropIcon(item.crop.iconPath, size: 30),
+          const SizedBox(width: 9),
+          Container(
+            width: 30,
+            height: 30,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: target.softColor,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(target.icon, size: 16, color: target.color),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CropIcon(item.crop.iconPath, size: 34),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${item.bed.label} | ${item.crop.name}',
-                        style: const TextStyle(
-                          color: C.ink,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '${protectionTargetLabel(item.target)} | every ${item.intervalDays} days | due ${shortDate(item.dueDate)}',
-                        style: const TextStyle(
-                          color: C.muted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
+                Text(
+                  '${item.crop.name} | ${protectionTargetLabel(item.target)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: C.ink,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
                   ),
                 ),
-                ProductTag(
-                  label: _statusLabel(item.status),
-                  color: _statusColor(item.status),
-                  background: C.card,
+                Text(
+                  '${_statusLabel(item.status)} | due ${shortDate(item.dueDate)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: C.muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            Text(
-              item.body,
-              style: const TextStyle(
-                color: C.ink,
-                height: 1.3,
-                fontWeight: FontWeight.w700,
+          ),
+          if (canPlan)
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(34, 34),
+              onPressed: onPlanSpray,
+              child: const Icon(
+                CupertinoIcons.plus_circle_fill,
+                color: C.forest,
+                size: 24,
               ),
             ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ...item.issues.take(4).map((issue) => TextChip(label: issue)),
-                if (item.product != null)
-                  ProductTag(
-                    label: item.product!.name,
-                    color: C.forest,
-                    background: C.forestSoft,
-                  ),
-              ],
-            ),
-            if (item.status == ProtectionStatus.due ||
-                item.status == ProtectionStatus.soon) ...[
-              const SizedBox(height: 10),
-              SecondaryButton(label: 'Open spray log', onPressed: onPlanSpray),
-            ],
-          ],
-        ),
-      );
+        ],
+      ),
+    );
+  }
 }
 
 class _IssueLibraryView extends StatelessWidget {
@@ -330,7 +569,14 @@ class _IssueLibraryView extends StatelessWidget {
       if (query.isEmpty) return true;
       return profile.name.toLowerCase().contains(query) ||
           profile.crops.any((crop) => crop.name.toLowerCase().contains(query));
-    }).toList(growable: false);
+    }).toList(growable: true)
+      ..sort((a, b) {
+        final aPlanted = a.crops.any((crop) => plantedIds.contains(crop.id));
+        final bPlanted = b.crops.any((crop) => plantedIds.contains(crop.id));
+        final plantedRank = bPlanted.toString().compareTo(aPlanted.toString());
+        if (plantedRank != 0) return plantedRank;
+        return a.name.compareTo(b.name);
+      });
     final planted = filtered
         .where((profile) =>
             profile.crops.any((crop) => plantedIds.contains(crop.id)))
@@ -457,10 +703,18 @@ class _IssueProfileCard extends StatelessWidget {
               runSpacing: 8,
               children: profile.products
                   .map(
-                    (product) => ProductTag(
-                      label: product.name,
-                      color: C.forest,
-                      background: C.forestSoft,
+                    (product) => CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      onPressed: () => showSprayProductDetail(
+                        context,
+                        product,
+                      ),
+                      child: ProductTag(
+                        label: product.name,
+                        color: C.forest,
+                        background: C.forestSoft,
+                      ),
                     ),
                   )
                   .toList(),
@@ -556,13 +810,6 @@ String _statusLabel(ProtectionStatus status) => switch (status) {
       ProtectionStatus.soon => 'Soon',
       ProtectionStatus.scheduled => 'Later',
       ProtectionStatus.blocked => 'Hold',
-    };
-
-Color _statusColor(ProtectionStatus status) => switch (status) {
-      ProtectionStatus.due => C.amber,
-      ProtectionStatus.soon => C.blue,
-      ProtectionStatus.scheduled => C.forest,
-      ProtectionStatus.blocked => C.red,
     };
 
 Color _statusBackground(ProtectionStatus status) => switch (status) {

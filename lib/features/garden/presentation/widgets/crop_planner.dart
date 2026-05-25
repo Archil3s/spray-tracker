@@ -151,7 +151,7 @@ class _BedCropPlannerSheetState extends State<_BedCropPlannerSheet> {
   }
 
   void _place(Offset position) {
-    if (erasing || spacingLoading) return;
+    if (erasing) return;
     final openSpot = nearestOpenPlantSpot(
       widget.bed,
       position,
@@ -168,7 +168,7 @@ class _BedCropPlannerSheetState extends State<_BedCropPlannerSheet> {
   }
 
   void _startRowPaint(Offset position) {
-    if (erasing || spacingLoading) return;
+    if (erasing) return;
     rowPaintStart = position;
     rowPaintCancelled = false;
     _updateRowPreview(position);
@@ -176,7 +176,7 @@ class _BedCropPlannerSheetState extends State<_BedCropPlannerSheet> {
 
   void _updateRowPreview(Offset position) {
     final start = rowPaintStart;
-    if (start == null || erasing || spacingLoading || rowPaintCancelled) return;
+    if (start == null || erasing || rowPaintCancelled) return;
     setState(() {
       rowPreview = rowPlantPreviewSpots(
         widget.bed,
@@ -245,7 +245,7 @@ class _BedCropPlannerSheetState extends State<_BedCropPlannerSheet> {
   }
 
   void _fillGrid() {
-    if (erasing || spacingLoading) return;
+    if (erasing) return;
     final positions = openPlantGridSpots(
       widget.bed,
       grid,
@@ -290,7 +290,7 @@ class _BedCropPlannerSheetState extends State<_BedCropPlannerSheet> {
   }
 
   void _generateAutoBed() {
-    if (erasing || spacingLoading) return;
+    if (erasing) return;
     final replacedPlants = [...plants];
     final plan = generateAutoBedPlan(
       bed: widget.bed,
@@ -329,13 +329,8 @@ class _BedCropPlannerSheetState extends State<_BedCropPlannerSheet> {
   Widget build(BuildContext context) {
     final filtered = crops;
     final season = gardenSeasonForDate(DateTime.now());
-    final openSpots = openPlantGridSpots(
-      widget.bed,
-      grid,
-      spacing,
-      plants,
-      (plant) => _knownSpacing(plant.crop),
-    ).length;
+    final gridColumns = grid.map((spot) => spot.dx).toSet().length;
+    final gridRows = grid.map((spot) => spot.dy).toSet().length;
     return Sheet(
       child: ListView(
         controller: plannerScroll,
@@ -356,6 +351,25 @@ class _BedCropPlannerSheetState extends State<_BedCropPlannerSheet> {
                   ),
                 ),
                 const SizedBox(height: 10),
+                _BedPlantingCanvas(
+                  bed: widget.bed,
+                  crops: widget.assigned,
+                  plants: plants,
+                  gridPositions: grid,
+                  previewPositions: rowPreview,
+                  previewCrop: selectedCrop,
+                  previewSpacing: spacing,
+                  height: 228,
+                  erasing: erasing,
+                  spacingForPlant: (plant) => _knownSpacing(plant.crop),
+                  onPlace: _place,
+                  onPlantTap: erasing ? _erase : null,
+                  onPaintStart: erasing ? null : _startRowPaint,
+                  onPaintUpdate: erasing ? null : _updateRowPreview,
+                  onPaintEnd: erasing ? null : _commitRowPaint,
+                  onPaintCancel: _cancelRowPaint,
+                ),
+                const SizedBox(height: 10),
                 _PlannerToolStrip(
                   erasing: erasing,
                   loading: spacingLoading,
@@ -367,10 +381,24 @@ class _BedCropPlannerSheetState extends State<_BedCropPlannerSheet> {
                   onClear: _clearBed,
                 ),
                 const SizedBox(height: 12),
+                _PlannerSettingsRow(
+                  spacing: spacing,
+                  columns: gridColumns,
+                  rows: gridRows,
+                  bed: widget.bed,
+                  season: season,
+                ),
+                const SizedBox(height: 8),
+                _PlannerHintBar(
+                  crop: selectedCrop,
+                  spacing: spacing,
+                  erasing: erasing,
+                ),
+                const SizedBox(height: 10),
                 _PlannerStatsPanel(
                   bed: widget.bed,
                   plants: plants,
-                  openSpots: openSpots,
+                  spacingForPlant: (plant) => _knownSpacing(plant.crop),
                 ),
                 const SizedBox(height: 10),
                 _CropSpacingBanner(
@@ -379,27 +407,15 @@ class _BedCropPlannerSheetState extends State<_BedCropPlannerSheet> {
                   count: _plantCount(selectedCrop),
                   loading: spacingLoading,
                 ),
+                if (lastAutoPlan != null) ...[
+                  const SizedBox(height: 10),
+                  _AutoBedResultSummary(plan: lastAutoPlan!),
+                ],
                 const SizedBox(height: 10),
-                _BedPlantingCanvas(
-                  bed: widget.bed,
-                  crops: widget.assigned,
-                  plants: plants,
-                  gridPositions: grid,
-                  previewPositions: rowPreview,
-                  previewCrop: selectedCrop,
-                  previewSpacing: spacing,
-                  height: 286,
-                  erasing: erasing,
-                  spacingForPlant: (plant) => _knownSpacing(plant.crop),
-                  onPlace: spacingLoading ? null : _place,
-                  onPlantTap: erasing ? _erase : null,
-                  onPaintStart:
-                      erasing || spacingLoading ? null : _startRowPaint,
-                  onPaintUpdate:
-                      erasing || spacingLoading ? null : _updateRowPreview,
-                  onPaintEnd:
-                      erasing || spacingLoading ? null : _commitRowPaint,
-                  onPaintCancel: _cancelRowPaint,
+                PrimaryButton(
+                  label:
+                      plants.isEmpty ? 'Generate bed layout' : 'Regenerate bed',
+                  onPressed: erasing ? null : _generateAutoBed,
                 ),
               ],
             ),
@@ -434,81 +450,169 @@ class _BedCropPlannerSheetState extends State<_BedCropPlannerSheet> {
                     ],
                   ),
                 ),
-                if (lastAutoPlan != null) ...[
-                  const SizedBox(height: 10),
-                  _AutoBedResultSummary(plan: lastAutoPlan!),
-                ],
                 const SizedBox(height: 10),
                 PrimaryButton(
-                  label:
-                      plants.isEmpty ? 'Generate bed layout' : 'Regenerate bed',
-                  onPressed:
-                      erasing || spacingLoading ? null : _generateAutoBed,
+                  label: 'Apply auto design',
+                  onPressed: erasing ? null : _generateAutoBed,
                 ),
               ],
             ),
           ),
           const SizedBox(height: 12),
-          CupertinoSearchTextField(
-            controller: search,
-            placeholder: 'Search vegetables',
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
+          Panel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _CropFamilyButton(
-                  label: 'All',
-                  selected: familyId == 'all',
-                  onTap: () => setState(() => familyId = 'all'),
-                ),
-                ...vegetableFamilies.map(
-                  (family) => Padding(
-                    padding: const EdgeInsets.only(left: 7),
-                    child: _CropFamilyButton(
-                      label: family.name,
-                      iconPath: family.iconPath,
-                      selected: familyId == family.id,
-                      onTap: () => setState(() => familyId = family.id),
-                    ),
+                SectionTitle(
+                  'Plants',
+                  trailing: ProductTag(
+                    label: '${filtered.length} shown',
+                    color: C.forest,
+                    background: C.forestSoft,
                   ),
                 ),
+                const SizedBox(height: 10),
+                CupertinoSearchTextField(
+                  controller: search,
+                  placeholder: 'Search vegetables',
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 10),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _CropFamilyButton(
+                        label: 'All',
+                        selected: familyId == 'all',
+                        onTap: () => setState(() => familyId = 'all'),
+                      ),
+                      ...vegetableFamilies.map(
+                        (family) => Padding(
+                          padding: const EdgeInsets.only(left: 7),
+                          child: _CropFamilyButton(
+                            label: family.name,
+                            iconPath: family.iconPath,
+                            selected: familyId == family.id,
+                            onTap: () => setState(() => familyId = family.id),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (filtered.isEmpty)
+                  const EmptyInline('No vegetables match this filter.')
+                else
+                  SizedBox(
+                    height: 314,
+                    child: ListView.separated(
+                      primary: false,
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 6),
+                      itemBuilder: (context, index) {
+                        final crop = filtered[index];
+                        final spacing = _knownSpacing(crop);
+                        final advice = seasonalPlantingAdviceFor(crop);
+                        return _CropPaletteCard(
+                          crop: crop,
+                          spacing: spacing,
+                          advice: advice,
+                          selected: selectedCrop.id == crop.id && !erasing,
+                          count: _plantCount(crop),
+                          onTap: () => _selectCrop(crop, returnToBed: true),
+                        );
+                      },
+                    ),
+                  ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: filtered.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: .94,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-            ),
-            itemBuilder: (context, index) {
-              final crop = filtered[index];
-              final spacing = _knownSpacing(crop);
-              final advice = seasonalPlantingAdviceFor(crop);
-              return _CropPaletteCard(
-                crop: crop,
-                spacing: spacing,
-                advice: advice,
-                selected: selectedCrop.id == crop.id && !erasing,
-                count: _plantCount(crop),
-                onTap: () => _selectCrop(crop, returnToBed: true),
-              );
-            },
-          ),
-          if (filtered.isEmpty)
-            const EmptyInline('No vegetables match this filter.'),
         ],
       ),
     );
   }
+}
+
+class _PlannerSettingsRow extends StatelessWidget {
+  const _PlannerSettingsRow({
+    required this.spacing,
+    required this.columns,
+    required this.rows,
+    required this.bed,
+    required this.season,
+  });
+
+  final CropSpacing spacing;
+  final int columns;
+  final int rows;
+  final GardenBed bed;
+  final GardenSeason season;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          _SettingChip(label: 'Plant ${meterLabel(spacing.plantCm)} cm'),
+          _SettingChip(label: 'Rows ${meterLabel(spacing.rowCm)} cm'),
+          _SettingChip(label: 'Grid $columns x $rows'),
+          _SettingChip(label: '= ${bed.sizeLabel}'),
+          _SettingChip(label: season.label),
+        ],
+      );
+}
+
+class _SettingChip extends StatelessWidget {
+  const _SettingChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        height: 30,
+        padding: const EdgeInsets.symmetric(horizontal: 9),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: C.card,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: C.line),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: C.muted,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      );
+}
+
+class _PlannerHintBar extends StatelessWidget {
+  const _PlannerHintBar({
+    required this.crop,
+    required this.spacing,
+    required this.erasing,
+  });
+
+  final VegetableDefinition crop;
+  final CropSpacing spacing;
+  final bool erasing;
+
+  @override
+  Widget build(BuildContext context) => Text(
+        erasing
+            ? 'Erase mode: tap planted icons to remove them.'
+            : 'Pick a plant, then tap or drag on the grid. ${crop.name}: ${meterLabel(spacing.plantCm)} cm plants, ${meterLabel(spacing.rowCm)} cm rows.',
+        style: const TextStyle(
+          color: C.muted,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      );
 }
 
 class _PlannerToolStrip extends StatelessWidget {
@@ -535,7 +639,9 @@ class _PlannerToolStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        child: Row(
+        child: Wrap(
+          spacing: 6,
+          runSpacing: 6,
           children: [
             _PlannerActionPill(
               label: 'Paint',
@@ -543,28 +649,24 @@ class _PlannerToolStrip extends StatelessWidget {
               selected: !erasing,
               onPressed: loading ? null : onPaint,
             ),
-            const SizedBox(width: 8),
             _PlannerActionPill(
               label: 'Row',
               icon: CupertinoIcons.arrow_right,
               selected: false,
               onPressed: loading ? null : onRow,
             ),
-            const SizedBox(width: 8),
             _PlannerActionPill(
-              label: 'Fill',
+              label: 'Fill area',
               icon: CupertinoIcons.square_grid_2x2,
               selected: false,
               onPressed: erasing || loading ? null : onFill,
             ),
-            const SizedBox(width: 8),
             _PlannerActionPill(
               label: 'Erase',
               icon: CupertinoIcons.delete,
               selected: erasing,
               onPressed: loading ? null : onErase,
             ),
-            const SizedBox(width: 8),
             _PlannerActionPill(
               label: 'Clear',
               icon: CupertinoIcons.clear,
@@ -580,88 +682,110 @@ class _PlannerStatsPanel extends StatelessWidget {
   const _PlannerStatsPanel({
     required this.bed,
     required this.plants,
-    required this.openSpots,
+    required this.spacingForPlant,
   });
 
   final GardenBed bed;
   final List<GardenPlant> plants;
-  final int openSpots;
+  final CropSpacing Function(GardenPlant plant) spacingForPlant;
 
   @override
   Widget build(BuildContext context) {
     final cropCount = plants.map((plant) => plant.crop.id).toSet().length;
-    final area = bed.widthMeters * bed.lengthMeters;
+    final areaUsed = plants
+        .fold<double>(0, (total, plant) {
+          final radiusMeters = spacingForPlant(plant).plantCm / 200;
+          return total + math.pi * radiusMeters * radiusMeters;
+        })
+        .clamp(0, bed.widthMeters * bed.lengthMeters)
+        .toDouble();
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: const Color(0xFFEAF4D6),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFD2E3B0)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _PlannerStat(
-              label: 'Plants',
-              value: '${plants.length}',
-            ),
-          ),
-          Expanded(
-            child: _PlannerStat(
-              label: 'Varieties',
-              value: '$cropCount',
-            ),
-          ),
-          Expanded(
-            child: _PlannerStat(
-              label: 'Open spots',
-              value: '$openSpots',
-            ),
-          ),
-          Expanded(
-            child: _PlannerStat(
-              label: 'Area',
-              value: '${meterLabel(area)} m2',
-            ),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final itemWidth = (constraints.maxWidth - 6) / 2;
+          return Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _PlannerStat(
+                width: itemWidth,
+                label: 'Plants placed',
+                value: '${plants.length}',
+              ),
+              _PlannerStat(
+                width: itemWidth,
+                label: 'Varieties',
+                value: '$cropCount',
+              ),
+              _PlannerStat(
+                width: itemWidth,
+                label: 'Area used',
+                value: '${meterLabel(areaUsed)}m2',
+              ),
+              _PlannerStat(
+                width: itemWidth,
+                label: 'Spacing warnings',
+                value: '0',
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
 class _PlannerStat extends StatelessWidget {
-  const _PlannerStat({required this.label, required this.value});
+  const _PlannerStat({
+    required this.width,
+    required this.label,
+    required this.value,
+  });
 
+  final double width;
   final String label;
   final String value;
 
   @override
-  Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: C.forest,
-              fontSize: 15,
-              fontWeight: FontWeight.w900,
+  Widget build(BuildContext context) => Container(
+        width: width,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+        decoration: BoxDecoration(
+          color: C.card.withValues(alpha: .72),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: C.forest,
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+              ),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: C.muted,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w800,
+            const SizedBox(height: 2),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: C.muted,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       );
 }
 
@@ -746,15 +870,15 @@ class _PlannerActionPill extends StatelessWidget {
         padding: EdgeInsets.zero,
         onPressed: onPressed,
         child: Container(
-          height: 42,
-          padding: const EdgeInsets.symmetric(horizontal: 13),
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
             color: selected
                 ? C.forest
                 : onPressed == null
                     ? C.soft
                     : C.card,
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: selected ? C.forest : C.line),
           ),
           child: Row(
@@ -779,7 +903,7 @@ class _PlannerActionPill extends StatelessWidget {
                           ? C.muted
                           : C.forest,
                   fontWeight: FontWeight.w900,
-                  fontSize: 12,
+                  fontSize: 11.5,
                 ),
               ),
             ],
@@ -967,75 +1091,69 @@ class _CropPaletteCard extends StatelessWidget {
         padding: EdgeInsets.zero,
         onPressed: onTap,
         child: Container(
-          padding: const EdgeInsets.all(10),
+          constraints: const BoxConstraints(minHeight: 58),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
           decoration: BoxDecoration(
             color: selected ? const Color(0xFFEAF4D6) : C.card,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: selected ? C.forest : C.line,
               width: selected ? 1.7 : 1,
             ),
           ),
-          child: Stack(
+          child: Row(
             children: [
-              Positioned(
-                top: 0,
-                right: 0,
-                child: Icon(
-                  selected
-                      ? CupertinoIcons.check_mark_circled_solid
-                      : CupertinoIcons.add_circled,
-                  color: selected ? C.forest : C.muted,
-                  size: 20,
-                ),
-              ),
-              if (count > 0)
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  child: ProductTag(
-                    label: '$count',
-                    color: C.forest,
-                    background: C.card,
-                  ),
-                ),
-              Positioned.fill(
+              CropIcon(crop.iconPath, size: 30),
+              const SizedBox(width: 9),
+              Expanded(
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    CropIcon(crop.iconPath, size: 50),
-                    const SizedBox(height: 8),
                     Text(
                       crop.name,
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: C.ink,
                         fontWeight: FontWeight.w900,
-                        fontSize: 12.5,
+                        fontSize: 13,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 2),
                     Text(
-                      '${meterLabel(spacing.plantCm)}cm x ${meterLabel(spacing.rowCm)}cm',
+                      '${meterLabel(spacing.plantCm)}cm x ${meterLabel(spacing.rowCm)}cm row',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: C.muted,
                         fontSize: 10.5,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 5),
-                    ProductTag(
-                      label: advice.inSeason ? advice.method.label : 'Later',
-                      color: advice.inSeason ? C.forest : C.amber,
-                      background: advice.inSeason ? C.forestSoft : C.amberSoft,
-                    ),
                   ],
                 ),
+              ),
+              const SizedBox(width: 8),
+              if (count > 0)
+                ProductTag(
+                  label: '$count',
+                  color: C.forest,
+                  background: C.card,
+                )
+              else
+                ProductTag(
+                  label: advice.inSeason ? advice.method.label : 'Later',
+                  color: advice.inSeason ? C.forest : C.amber,
+                  background: advice.inSeason ? C.forestSoft : C.amberSoft,
+                ),
+              const SizedBox(width: 8),
+              Icon(
+                selected
+                    ? CupertinoIcons.check_mark_circled_solid
+                    : CupertinoIcons.add_circled,
+                color: selected ? C.forest : C.muted,
+                size: 19,
               ),
             ],
           ),

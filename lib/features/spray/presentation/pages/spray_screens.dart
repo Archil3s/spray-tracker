@@ -50,7 +50,23 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
   void initState() {
     super.initState();
     if (widget.products.isNotEmpty) {
-      _selectProduct(_bestProductForTarget('pest'));
+      _selectProduct(_bestProductForCurrentTarget());
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant SprayLogScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.products.isEmpty) {
+      selectedProduct = null;
+      return;
+    }
+    final productsLoaded =
+        oldWidget.products.isEmpty && widget.products.isNotEmpty;
+    final selectedStillExists = selectedProduct == null ||
+        widget.products.any((product) => product.id == selectedProduct!.id);
+    if (productsLoaded || !selectedStillExists) {
+      _selectProduct(_bestProductForCurrentTarget());
     }
   }
 
@@ -61,11 +77,35 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
     super.dispose();
   }
 
-  SprayProduct _bestProductForTarget(String target) {
-    return widget.products.firstWhere(
-      (product) => product.targets.contains(target),
-      orElse: () => widget.products.first,
+  List<VegetableDefinition> _selectedCropDefinitions() {
+    final byId = <String, VegetableDefinition>{};
+    for (final bed in beds) {
+      for (final crop
+          in widget.bedCrops[bed] ?? const <VegetableDefinition>[]) {
+        byId[crop.id] = crop;
+      }
+    }
+    for (final name in manualCrops) {
+      final lower = name.toLowerCase();
+      for (final crop in vegetableLibrary) {
+        if (crop.name.toLowerCase() == lower) {
+          byId[crop.id] = crop;
+          break;
+        }
+      }
+    }
+    return byId.values.toList()..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  SprayProduct _bestProductForCurrentTarget({String issue = ''}) {
+    assert(widget.products.isNotEmpty);
+    final ranked = rankedSprayProductsForSpray(
+      targetId: targetId,
+      issue: issue,
+      crops: _selectedCropDefinitions(),
+      products: widget.products,
     );
+    return ranked.isEmpty ? widget.products.first : ranked.first;
   }
 
   void _selectProduct(SprayProduct product) {
@@ -76,12 +116,34 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
   @override
   Widget build(BuildContext context) {
     final product = selectedProduct;
+    final cropDefinitions = _selectedCropDefinitions();
     final crops = {
       ...cropNamesForBeds(widget.bedCrops, beds),
       ...manualCrops,
     }.toList()
       ..sort();
     final sortedBeds = beds.toList()..sort();
+    final issueSuggestions = buildSprayAgainstSuggestions(
+      crops: cropDefinitions,
+      targetId: targetId,
+      products: widget.products,
+    );
+    final issue = reason.text.trim().isEmpty && issueSuggestions.isNotEmpty
+        ? issueSuggestions.first.issue
+        : reason.text.trim();
+    final rankedProducts = widget.products.isEmpty
+        ? const <SprayProduct>[]
+        : rankedSprayProductsForSpray(
+            targetId: targetId,
+            issue: issue,
+            crops: cropDefinitions,
+            products: widget.products,
+          );
+    final rankedIds = rankedProducts.map((product) => product.id).toSet();
+    final productList = [
+      ...rankedProducts,
+      ...widget.products.where((product) => !rankedIds.contains(product.id)),
+    ];
     return AppPage(
       title: 'Spray Log',
       subtitle:
@@ -171,7 +233,22 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
           onSelect: (id) => setState(() {
             targetId = id;
             if (widget.products.isNotEmpty) {
-              _selectProduct(_bestProductForTarget(id));
+              _selectProduct(_bestProductForCurrentTarget());
+            }
+          }),
+        ),
+        const SizedBox(height: 10),
+        _SprayAgainstSuggestionsPanel(
+          suggestions: issueSuggestions,
+          onUse: (suggestion) => setState(() {
+            targetId = suggestion.targetId;
+            reason.text = suggestion.issue;
+            if (suggestion.product != null) {
+              _selectProduct(suggestion.product!);
+            } else if (widget.products.isNotEmpty) {
+              _selectProduct(
+                _bestProductForCurrentTarget(issue: suggestion.issue),
+              );
             }
           }),
         ),
@@ -183,14 +260,36 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
         else if (widget.products.isEmpty)
           const EmptyCard('No products loaded.')
         else
-          ...widget.products.map(
+          ...productList.map(
             (item) => ProductChoice(
               product: item,
               selected: product?.id == item.id,
-              suggested: item.targets.contains(targetId),
-              onTap: () => setState(() => _selectProduct(item)),
+              suggested:
+                  rankedProducts.take(4).any((match) => match.id == item.id) ||
+                      item.targets.contains(targetId),
+              onTap: () {
+                setState(() => _selectProduct(item));
+                showSprayProductDetail(
+                  context,
+                  item,
+                  gardenBeds: widget.gardenBeds,
+                  bedCrops: widget.bedCrops,
+                  records: widget.records,
+                );
+              },
             ),
           ),
+        if (product != null) ...[
+          const SizedBox(height: 10),
+          _SprayDecisionPanel(
+            product: product,
+            targetId: targetId,
+            crops: cropDefinitions,
+            beds: sortedBeds,
+            records: widget.records,
+            products: widget.products,
+          ),
+        ],
         const SizedBox(height: 18),
         Field(
           controller: reason,
@@ -310,11 +409,13 @@ class RecordsScreen extends StatelessWidget {
   const RecordsScreen({
     required this.records,
     required this.message,
+    required this.highlightedRecordId,
     required this.onDelete,
     super.key,
   });
   final List<SprayRecord> records;
   final String message;
+  final int? highlightedRecordId;
   final ValueChanged<int> onDelete;
 
   @override
@@ -328,7 +429,11 @@ class RecordsScreen extends StatelessWidget {
           else
             ...records.map(
               (record) => RecordCard(
-                  record: record, onDelete: () => onDelete(record.id)),
+                record: record,
+                highlighted: record.id == highlightedRecordId,
+                onTap: () => showSprayRecordDetail(context, record),
+                onDelete: () => onDelete(record.id),
+              ),
             ),
         ],
       );
@@ -339,9 +444,8 @@ class ProductTile extends StatelessWidget {
   final SprayProduct product;
 
   @override
-  Widget build(BuildContext context) => CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: () => showSprayProductDetail(context, product),
+  Widget build(BuildContext context) => SmoothTap(
+        onTap: () => showSprayProductDetail(context, product),
         child: Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(14),
@@ -440,59 +544,359 @@ class ProductChoice extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: onTap,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: selected ? C.forestSoft : C.card,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: selected ? C.forest : C.line),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      product.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: C.ink,
-                        fontWeight: FontWeight.w900,
-                      ),
+  Widget build(BuildContext context) {
+    final target = targetById(
+      product.targets.isEmpty ? 'prevent' : product.targets.first,
+    );
+    return SmoothTap(
+      onTap: onTap,
+      semanticsLabel: product.name,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: selected ? C.forestSoft : C.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: selected ? C.forest : C.line),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: target.softColor,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(target.icon, color: target.color, size: 19),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: C.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
                     ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${product.type} | ${product.withholdingDays} day WHP | Re-entry ${product.reEntryHours} hr',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: C.muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (product.activeIngredient.isNotEmpty) ...[
+                    const SizedBox(height: 5),
                     Text(
-                      '${product.type} | ${product.withholdingDays} day WHP | Re-entry ${product.reEntryHours} hr',
+                      product.activeIngredient,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: C.muted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                        color: C.forest,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
-                ),
+                ],
               ),
-              if (suggested) ...[
-                const SizedBox(width: 8),
-                const StatusPill('MATCH', hold: false),
-              ],
+            ),
+            if (suggested) ...[
               const SizedBox(width: 8),
-              Icon(
-                selected
-                    ? CupertinoIcons.check_mark_circled_solid
-                    : CupertinoIcons.circle,
-                color: selected ? C.forest : C.muted,
-                size: 22,
+              const StatusPill('MATCH', hold: false),
+            ],
+            const SizedBox(width: 8),
+            Icon(
+              selected
+                  ? CupertinoIcons.check_mark_circled_solid
+                  : CupertinoIcons.circle,
+              color: selected ? C.forest : C.muted,
+              size: 22,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SprayAgainstSuggestionsPanel extends StatelessWidget {
+  const _SprayAgainstSuggestionsPanel({
+    required this.suggestions,
+    required this.onUse,
+  });
+
+  final List<SprayIssueSuggestion> suggestions;
+  final ValueChanged<SprayIssueSuggestion> onUse;
+
+  @override
+  Widget build(BuildContext context) => Panel(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SectionTitle(
+              'Likely issues',
+              trailing: ProductTag(
+                label: '${suggestions.length}',
+                color: C.forest,
+                background: C.forestSoft,
+              ),
+            ),
+            const SizedBox(height: 10),
+            if (suggestions.isEmpty)
+              const EmptyInline(
+                'Select planted beds first. The app will suggest likely pests, fungus, or support jobs from those crops.',
+              )
+            else
+              ...suggestions.take(6).map(
+                    (suggestion) => _SprayIssueSuggestionTile(
+                      suggestion: suggestion,
+                      onUse: () => onUse(suggestion),
+                    ),
+                  ),
+          ],
+        ),
+      );
+}
+
+class _SprayIssueSuggestionTile extends StatelessWidget {
+  const _SprayIssueSuggestionTile({
+    required this.suggestion,
+    required this.onUse,
+  });
+
+  final SprayIssueSuggestion suggestion;
+  final VoidCallback onUse;
+
+  @override
+  Widget build(BuildContext context) {
+    final target = targetById(suggestion.targetId);
+    return SmoothTap(
+      onTap: onUse,
+      semanticsLabel: suggestion.issue,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: target.color.withValues(alpha: .12)),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: target.softColor,
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: target.color.withValues(alpha: .12)),
+              ),
+              child: Icon(target.icon, color: target.color, size: 19),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    suggestion.issue,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: C.ink,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    suggestion.cropSummary,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: C.muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (suggestion.product != null) ...[
+              const SizedBox(width: 8),
+              const ProductTag(
+                label: 'MATCH',
+                color: C.forest,
+                background: C.forestSoft,
               ),
             ],
+            const SizedBox(width: 6),
+            const Icon(CupertinoIcons.chevron_right, color: C.muted, size: 15),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SprayDecisionPanel extends StatelessWidget {
+  const _SprayDecisionPanel({
+    required this.product,
+    required this.targetId,
+    required this.crops,
+    required this.beds,
+    required this.records,
+    required this.products,
+  });
+
+  final SprayProduct product;
+  final String targetId;
+  final List<VegetableDefinition> crops;
+  final List<int> beds;
+  final List<SprayRecord> records;
+  final List<SprayProduct> products;
+
+  @override
+  Widget build(BuildContext context) {
+    final target = targetById(targetId);
+    final coverage = summarizeSprayCoverage(
+      product: product,
+      targetId: targetId,
+      crops: crops,
+    );
+    final rotation = sprayRotationAdvice(
+      product: product,
+      records: records,
+      products: products,
+      beds: beds,
+    );
+    final followUp = product.reSprayIntervalDays > 0
+        ? DateTime.now().add(Duration(days: product.reSprayIntervalDays))
+        : null;
+
+    return Panel(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionTitle(
+            'Spray check',
+            trailing: ProductTag(
+              label: coverage.targetMatched ? 'MATCH' : 'CHECK LABEL',
+              color: coverage.targetMatched ? C.forest : C.amber,
+              background: coverage.targetMatched ? C.forestSoft : C.amberSoft,
+            ),
           ),
+          const SizedBox(height: 8),
+          _SprayInfoRow(
+            icon: target.icon,
+            color: target.color,
+            title: target.title,
+            body: coverage.targetMatched
+                ? '${product.name} is tagged for ${target.short.toLowerCase()} work.'
+                : 'This product is not clearly tagged for ${target.short.toLowerCase()} work.',
+          ),
+          _SprayInfoRow(
+            icon: CupertinoIcons.checkmark_shield,
+            color: coverage.coversAllCrops ? C.forest : C.amber,
+            title: 'Crop coverage',
+            body: crops.isEmpty
+                ? 'No planted crop data selected yet.'
+                : coverage.coversAllCrops
+                    ? 'Likely covers all ${crops.length} selected crop${crops.length == 1 ? '' : 's'}.'
+                    : 'Check label for ${coverage.unmatchedCrops.map((crop) => crop.name).join(', ')}.',
+          ),
+          _SprayInfoRow(
+            icon: CupertinoIcons.time,
+            color: C.blue,
+            title: 'After spraying',
+            body: followUp == null
+                ? 'No repeat interval set. Use observation before repeating.'
+                : 'Next check from ${shortDate(followUp)}. Re-entry ${product.reEntryHours} hr. WHP ${product.withholdingDays} day${product.withholdingDays == 1 ? '' : 's'}.',
+          ),
+          if (rotation != null)
+            _SprayInfoRow(
+              icon: rotation.caution
+                  ? CupertinoIcons.exclamationmark_triangle_fill
+                  : CupertinoIcons.arrow_2_circlepath,
+              color: rotation.caution ? C.red : C.amber,
+              title: rotation.title,
+              body: rotation.body,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SprayInfoRow extends StatelessWidget {
+  const _SprayInfoRow({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: .13),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 17),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: C.ink,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    body,
+                    style: const TextStyle(
+                      color: C.muted,
+                      fontSize: 12,
+                      height: 1.25,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       );
 }
@@ -544,7 +948,19 @@ class SprayProductHelperNotes extends StatelessWidget {
       );
 }
 
-void showSprayProductDetail(BuildContext context, SprayProduct product) {
+void showSprayProductDetail(
+  BuildContext context,
+  SprayProduct product, {
+  List<GardenBed> gardenBeds = const [],
+  Map<int, List<VegetableDefinition>> bedCrops = const {},
+  List<SprayRecord> records = const [],
+}) {
+  final usedRecords = records
+      .where(
+        (record) =>
+            record.productId == product.id || record.product == product.name,
+      )
+      .toList(growable: false);
   showCupertinoModalPopup<void>(
     context: context,
     builder: (_) => Sheet(
@@ -587,8 +1003,211 @@ void showSprayProductDetail(BuildContext context, SprayProduct product) {
               ],
             ),
           ),
+          if (bedCrops.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _ProductCoveragePanel(
+              product: product,
+              gardenBeds: gardenBeds,
+              bedCrops: bedCrops,
+              records: records,
+            ),
+          ],
+          if (usedRecords.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const SectionTitle('Spray records using this product'),
+            const SizedBox(height: 8),
+            ...usedRecords.map(
+              (record) => RecordCard(
+                record: record,
+                onTap: () => showSprayRecordDetail(context, record),
+              ),
+            ),
+          ],
         ],
       ),
     ),
   );
+}
+
+void showSprayRecordDetail(BuildContext context, SprayRecord record) {
+  final target = targetById(record.targetId);
+  showCupertinoModalPopup<void>(
+    context: context,
+    builder: (_) => Sheet(
+      child: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          SheetHeader(
+            title: 'Spray record ${record.id}',
+            subtitle: '${target.short} | ${shortDate(record.date)}',
+          ),
+          const SizedBox(height: 12),
+          Panel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DetailLine(
+                  'Beds',
+                  record.beds.map((bed) => 'Bed $bed').join(', '),
+                ),
+                DetailLine('Crops', record.crops.join(', ')),
+                DetailLine('Product', record.product),
+                DetailLine('Target', target.title),
+                DetailLine(
+                  'Reason',
+                  record.reason.isEmpty ? '-' : record.reason,
+                ),
+                DetailLine('Notes', record.notes.isEmpty ? '-' : record.notes),
+                DetailLine('Sprayed', shortDate(record.date)),
+                DetailLine('Safe harvest', shortDate(record.safeDate)),
+                DetailLine(
+                  'Withholding status',
+                  record.onHold
+                      ? _recordRemainingHoldLabel(record)
+                      : 'Safe now',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _ProductCoveragePanel extends StatelessWidget {
+  const _ProductCoveragePanel({
+    required this.product,
+    required this.gardenBeds,
+    required this.bedCrops,
+    required this.records,
+  });
+
+  final SprayProduct product;
+  final List<GardenBed> gardenBeds;
+  final Map<int, List<VegetableDefinition>> bedCrops;
+  final List<SprayRecord> records;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[];
+    for (final bed in gardenBeds) {
+      final crops = bedCrops[bed.number] ?? const <VegetableDefinition>[];
+      for (final crop in crops) {
+        if (!_productLikelyCoversCrop(product, crop)) continue;
+        final summary = bedSpraySummary(records, bed.number);
+        rows.add(
+          _ProductCoverageRow(
+            bed: bed,
+            crop: crop,
+            summary: summary,
+            product: product,
+          ),
+        );
+      }
+    }
+
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionTitle(
+            'Likely bed coverage',
+            trailing: ProductTag(
+              label: '${product.withholdingDays} day WHP',
+              color: C.forest,
+              background: C.forestSoft,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (rows.isEmpty)
+            const EmptyInline(
+              'No logged crops clearly match this product label text.',
+            )
+          else
+            ...rows,
+        ],
+      ),
+    );
+  }
+}
+
+class _ProductCoverageRow extends StatelessWidget {
+  const _ProductCoverageRow({
+    required this.bed,
+    required this.crop,
+    required this.summary,
+    required this.product,
+  });
+
+  final GardenBed bed;
+  final VegetableDefinition crop;
+  final BedSpraySummary summary;
+  final SprayProduct product;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: C.canvas,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: C.line),
+        ),
+        child: Row(
+          children: [
+            CropIcon(crop.iconPath, size: 28),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${bed.label} | ${crop.name}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: C.ink,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    product.targets
+                        .map(targetById)
+                        .map((target) => target.short)
+                        .join(', '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: C.muted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            StatusPill(
+              summary.onHold ? 'HOLD' : 'SAFE',
+              hold: summary.onHold,
+            ),
+          ],
+        ),
+      );
+}
+
+String _recordRemainingHoldLabel(SprayRecord record) {
+  final remaining = record.safeDate.difference(DateTime.now()).inDays + 1;
+  final days = remaining < 1 ? 1 : remaining;
+  return 'On hold for $days more day${days == 1 ? '' : 's'}';
+}
+
+bool _productLikelyCoversCrop(SprayProduct product, VegetableDefinition crop) {
+  final text = product.searchText;
+  if (text.contains(crop.name.toLowerCase())) return true;
+  if (text.contains(familyById(crop.familyId).name.toLowerCase())) return true;
+  if (text.contains('vegetable') || text.contains('edible')) return true;
+  final issues = [...crop.commonPests, ...crop.commonDiseases];
+  return issues.any((issue) => text.contains(issue.toLowerCase()));
 }

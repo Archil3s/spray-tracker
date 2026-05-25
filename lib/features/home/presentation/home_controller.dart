@@ -10,9 +10,12 @@ class SprayTrackerHome extends StatefulWidget {
 class _SprayTrackerHomeState extends State<SprayTrackerHome> {
   int tab = 0;
   int selectedBed = 4;
+  int? highlightedRecordId;
   int nextRecordId = 1;
   int nextPlantId = 1;
   String message = '';
+  ProtectionView protectionView = ProtectionView.calendar;
+  String protectionSearch = '';
 
   List<SprayProduct> products = const [];
   bool productsLoading = true;
@@ -80,45 +83,50 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
       final snapshot = await LocalGardenRepository.instance.load();
       if (!mounted || snapshot == null) return;
 
-      final restoredBedCrops = _restoreBedCrops(snapshot.bedCropIds);
-      final restoredPlants = snapshot.plants.isEmpty
-          ? _defaultPlantingsForCrops(restoredBedCrops)
-          : _restoreGardenPlants(snapshot.plants);
-      _addPlantCrops(restoredBedCrops, restoredPlants);
-      final restoredRecords =
-          snapshot.records.map(_recordFromStorage).toList(growable: false);
-      final restoredLayout = _restoreGardenLayout(snapshot.beds);
-      final restoredPlot = GardenPlot(
-        widthMeters: snapshot.plotWidthMeters > 0
-            ? snapshot.plotWidthMeters
-            : defaultGardenPlot.widthMeters,
-        lengthMeters: snapshot.plotLengthMeters > 0
-            ? snapshot.plotLengthMeters
-            : defaultGardenPlot.lengthMeters,
-      );
-      setState(() {
-        bedCrops
-          ..clear()
-          ..addAll(restoredBedCrops);
-        bedPlants
-          ..clear()
-          ..addAll(restoredPlants);
-        if (restoredLayout.isNotEmpty) {
-          gardenLayout = restoredLayout;
-        }
-        gardenPlot = restoredPlot;
-        records = restoredRecords;
-        nextRecordId = _nextRecordId(snapshot, restoredRecords);
-        nextPlantId = _nextGardenPlantId(restoredPlants);
-        message = 'Garden loaded from this phone';
-      });
-      unawaited(_restoreHarvestReminders(restoredRecords));
+      _applyGardenSnapshot(snapshot, 'Garden loaded from this phone');
     } catch (_) {
       if (!mounted) return;
       setState(() {
         message = 'Saved garden could not be loaded';
       });
     }
+  }
+
+  void _applyGardenSnapshot(GardenSnapshot snapshot, String nextMessage) {
+    final restoredBedCrops = _restoreBedCrops(snapshot.bedCropIds);
+    final restoredPlants = snapshot.plants.isEmpty
+        ? _defaultPlantingsForCrops(restoredBedCrops)
+        : _restoreGardenPlants(snapshot.plants);
+    _addPlantCrops(restoredBedCrops, restoredPlants);
+    final restoredRecords =
+        snapshot.records.map(_recordFromStorage).toList(growable: false);
+    final restoredLayout = _restoreGardenLayout(snapshot.beds);
+    final restoredPlot = GardenPlot(
+      widthMeters: snapshot.plotWidthMeters > 0
+          ? snapshot.plotWidthMeters
+          : defaultGardenPlot.widthMeters,
+      lengthMeters: snapshot.plotLengthMeters > 0
+          ? snapshot.plotLengthMeters
+          : defaultGardenPlot.lengthMeters,
+    );
+    if (!mounted) return;
+    setState(() {
+      bedCrops
+        ..clear()
+        ..addAll(restoredBedCrops);
+      bedPlants
+        ..clear()
+        ..addAll(restoredPlants);
+      if (restoredLayout.isNotEmpty) {
+        gardenLayout = restoredLayout;
+      }
+      gardenPlot = restoredPlot;
+      records = restoredRecords;
+      nextRecordId = _nextRecordId(snapshot, restoredRecords);
+      nextPlantId = _nextGardenPlantId(restoredPlants);
+      message = nextMessage;
+    });
+    unawaited(_restoreHarvestReminders(restoredRecords));
   }
 
   Map<int, List<VegetableDefinition>> _restoreBedCrops(
@@ -571,27 +579,76 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
 
   Future<void> _saveGarden() async {
     try {
-      await LocalGardenRepository.instance.save(
-        GardenSnapshot(
-          nextRecordId: nextRecordId,
-          bedCropIds: {
-            for (final entry in bedCrops.entries)
-              entry.key: entry.value.map((crop) => crop.id).toList(),
-          },
-          records: records.map(_recordToStorage).toList(growable: false),
-          beds: gardenLayout.map(_bedToStorage).toList(growable: false),
-          plants: bedPlants.values
-              .expand((plants) => plants)
-              .map(_plantToStorage)
-              .toList(growable: false),
-          plotWidthMeters: gardenPlot.widthMeters,
-          plotLengthMeters: gardenPlot.lengthMeters,
-        ),
-      );
+      await LocalGardenRepository.instance.save(_snapshotFromState());
     } catch (_) {
       if (!mounted) return;
       setState(() {
         message = 'Garden change saved for now, but local storage failed';
+      });
+    }
+  }
+
+  GardenSnapshot _snapshotFromState() => GardenSnapshot(
+        nextRecordId: nextRecordId,
+        bedCropIds: {
+          for (final entry in bedCrops.entries)
+            entry.key: entry.value.map((crop) => crop.id).toList(),
+        },
+        records: records.map(_recordToStorage).toList(growable: false),
+        beds: gardenLayout.map(_bedToStorage).toList(growable: false),
+        plants: bedPlants.values
+            .expand((plants) => plants)
+            .map(_plantToStorage)
+            .toList(growable: false),
+        plotWidthMeters: gardenPlot.widthMeters,
+        plotLengthMeters: gardenPlot.lengthMeters,
+      );
+
+  Future<void> copyGardenBackup() async {
+    try {
+      await Clipboard.setData(
+        ClipboardData(text: encodeGardenSnapshot(_snapshotFromState())),
+      );
+      if (!mounted) return;
+      setState(() {
+        message = 'Garden backup copied';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        message = 'Garden backup could not be copied';
+      });
+    }
+  }
+
+  Future<void> restoreGardenBackup(String raw) async {
+    final snapshot = decodeGardenSnapshot(raw.trim());
+    if (snapshot == null) {
+      if (!mounted) return;
+      setState(() {
+        message = 'Backup text was not valid';
+      });
+      return;
+    }
+    _applyGardenSnapshot(snapshot, 'Garden backup loaded');
+    await _saveGarden();
+  }
+
+  Future<void> reloadGardenBackup() async {
+    try {
+      final snapshot = await LocalGardenRepository.instance.load();
+      if (!mounted) return;
+      if (snapshot == null) {
+        setState(() {
+          message = 'No saved garden found on this phone';
+        });
+        return;
+      }
+      _applyGardenSnapshot(snapshot, 'Garden reloaded from this phone');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        message = 'Saved garden could not be reloaded';
       });
     }
   }
@@ -631,6 +688,37 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
   bool bedOnHold(int bed) =>
       records.any((record) => record.beds.contains(bed) && record.onHold);
 
+  void openBed(int bed) {
+    setState(() {
+      selectedBed = bed;
+      tab = 1;
+      message = 'Opened Bed $bed';
+    });
+  }
+
+  void openRecord(SprayRecord record) {
+    setState(() {
+      highlightedRecordId = record.id;
+      selectedBed = record.beds.isEmpty ? selectedBed : record.beds.first;
+      tab = 3;
+      message = 'Opened spray record ${record.id}';
+    });
+  }
+
+  void openProtectionProfiles({
+    required ProtectionView view,
+    String search = '',
+  }) {
+    setState(() {
+      protectionView = view;
+      protectionSearch = search;
+      tab = 4;
+      message = view == ProtectionView.pests
+          ? 'Opened pest pressure profiles'
+          : 'Opened protection profiles';
+    });
+  }
+
   int get clearBeds =>
       gardenLayout.where((bed) => !bedOnHold(bed.number)).length;
   int get holdBeds => gardenLayout.length - clearBeds;
@@ -638,6 +726,8 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
       bedCrops.values.where((items) => items.isNotEmpty).length;
   int get cropPlacements =>
       bedCrops.values.fold(0, (sum, list) => sum + list.length);
+  String get gardenMessage =>
+      message == 'Saved garden could not be loaded' ? message : '';
 
   @override
   Widget build(BuildContext context) {
@@ -647,13 +737,25 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
         holdBeds: holdBeds,
         plantedBeds: plantedBeds,
         cropPlacements: cropPlacements,
+        gardenBeds: gardenLayout,
+        bedCrops: bedCrops,
         records: records,
         products: products,
         message: message,
         sprayConditions: sprayConditions,
         gardenRisks: gardenRisks,
         onPlanSpray: () => setState(() => tab = 2),
-        onOpenProducts: () => setState(() => tab = 4),
+        onOpenProducts: () => openProtectionProfiles(
+          view: ProtectionView.products,
+        ),
+        onOpenBed: openBed,
+        onOpenRecord: openRecord,
+        onOpenPestProfiles: () => openProtectionProfiles(
+          view: ProtectionView.pests,
+        ),
+        onCopyBackup: copyGardenBackup,
+        onRestoreBackup: restoreGardenBackup,
+        onReloadBackup: reloadGardenBackup,
       ),
       GardenScreen(
         selectedBed: selectedBed,
@@ -665,8 +767,15 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
         products: products,
         gardenRisks: gardenRisks,
         isHold: bedOnHold,
-        message: message,
-        onSelectBed: (bed) => setState(() => selectedBed = bed),
+        message: gardenMessage,
+        onSelectBed: (bed) => setState(() {
+          selectedBed = bed;
+          message = '';
+        }),
+        onOpenRecord: openRecord,
+        onOpenPestProfiles: () => openProtectionProfiles(
+          view: ProtectionView.pests,
+        ),
         onAddCrop: addCrop,
         onRemoveCrop: removeCrop,
         onAddPlant: addGardenPlant,
@@ -696,7 +805,12 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
         sprayConditions: sprayConditions,
         onSave: saveSpray,
       ),
-      RecordsScreen(records: records, message: message, onDelete: deleteRecord),
+      RecordsScreen(
+        records: records,
+        message: message,
+        highlightedRecordId: highlightedRecordId,
+        onDelete: deleteRecord,
+      ),
       ProtectionScreen(
         gardenBeds: gardenLayout,
         bedCrops: bedCrops,
@@ -706,6 +820,8 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
         message: message,
         gardenRisks: gardenRisks,
         onPlanSpray: () => setState(() => tab = 2),
+        initialView: protectionView,
+        initialSearch: protectionSearch,
       ),
     ];
 
@@ -715,7 +831,7 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
         child: Column(
           children: [
             Expanded(
-              child: IndexedStack(index: tab, children: pages),
+              child: SmoothIndexedStack(index: tab, children: pages),
             ),
             BottomNav(tab: tab, onTap: (value) => setState(() => tab = value)),
           ],

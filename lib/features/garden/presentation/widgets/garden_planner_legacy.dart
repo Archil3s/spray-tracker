@@ -38,48 +38,38 @@ class _BedPlantingCanvas extends StatelessWidget {
   final VoidCallback? onPaintCancel;
 
   @override
-  Widget build(BuildContext context) => Container(
-        key: const ValueKey('bed-planting-canvas'),
-        height: height,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF6F1E8),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFC4AA87), width: 1.4),
-        ),
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 34, 12, 12),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final size = fittedBedCanvasSize(
-                      Size(constraints.maxWidth, constraints.maxHeight),
-                      bed,
-                    );
-                    return Center(
-                      child: SizedBox(
-                        width: size.width,
-                        height: size.height,
-                        child: _buildBedSurface(size),
-                      ),
-                    );
-                  },
-                ),
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final maxWidth =
+              constraints.maxWidth.isFinite ? constraints.maxWidth : 360.0;
+          final aspect = bed.widthMeters / bed.lengthMeters;
+          var surfaceWidth = maxWidth;
+          var surfaceHeight = surfaceWidth / aspect;
+          if (surfaceHeight > height) {
+            surfaceHeight = height;
+            surfaceWidth = surfaceHeight * aspect;
+          }
+          final size = Size(surfaceWidth, surfaceHeight);
+          return Align(
+            alignment: Alignment.center,
+            child: Container(
+              key: const ValueKey('bed-planting-canvas'),
+              width: surfaceWidth,
+              height: surfaceHeight,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: const Color(0xFFDCEEB7),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFF8EC83A), width: 1),
+              ),
+              child: SizedBox(
+                width: size.width,
+                height: size.height,
+                child: _buildBedSurface(size),
               ),
             ),
-            Positioned(
-              top: 10,
-              right: 10,
-              child: ProductTag(
-                label: bed.sizeLabel,
-                color: C.forest,
-                background: C.forestSoft,
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       );
 
   Widget _buildBedSurface(Size size) => Container(
@@ -132,19 +122,6 @@ class _BedPlantingCanvas extends StatelessWidget {
                           ),
                         ),
                       ),
-                    if (plants.isNotEmpty)
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: _PlantingBandPainter(
-                              bed: bed,
-                              plants: plants,
-                              spacingForPlant: spacingForPlant,
-                              drawLabels: false,
-                            ),
-                          ),
-                        ),
-                      ),
                     if (plants.isEmpty && crops.isEmpty)
                       const Center(
                         child: Icon(
@@ -153,8 +130,8 @@ class _BedPlantingCanvas extends StatelessWidget {
                           size: 42,
                         ),
                       ),
-                    if (_displayPlants().isNotEmpty)
-                      ..._displayPlants().map((plant) {
+                    if (plants.isNotEmpty)
+                      ...plants.map((plant) {
                         final spacing = spacingForPlant == null
                             ? cropSpacingFor(plant.crop)
                             : spacingForPlant!(plant);
@@ -165,17 +142,18 @@ class _BedPlantingCanvas extends StatelessWidget {
                         return Positioned(
                           left: plant.position.dx * size.width - tapExtent / 2,
                           top: plant.position.dy * size.height - tapExtent / 2,
-                          child: IgnorePointer(
-                            ignoring: !erasing,
-                            child: _PlacedPlantIcon(
-                              plant: plant,
-                              extent: extent,
-                              tapExtent: tapExtent,
-                              erasing: erasing,
-                              onTap: onPlantTap == null
-                                  ? null
-                                  : () => onPlantTap!(plant),
-                            ),
+                          child: _PlacedPlantIcon(
+                            plant: plant,
+                            extent: extent,
+                            tapExtent: tapExtent,
+                            erasing: erasing,
+                            onTap: erasing
+                                ? onPlantTap == null
+                                    ? null
+                                    : () => onPlantTap!(plant)
+                                : onPlace == null
+                                    ? null
+                                    : () => onPlace!(plant.position),
                           ),
                         );
                       })
@@ -191,19 +169,6 @@ class _BedPlantingCanvas extends StatelessWidget {
                                 (crop) => _PlantPatch(crop: crop),
                               )
                               .toList(),
-                        ),
-                      ),
-                    if (plants.isNotEmpty)
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: _PlantingBandPainter(
-                              bed: bed,
-                              plants: plants,
-                              spacingForPlant: spacingForPlant,
-                              drawBands: false,
-                            ),
-                          ),
                         ),
                       ),
                     if (previewPositions.isNotEmpty &&
@@ -257,44 +222,6 @@ class _BedPlantingCanvas extends StatelessWidget {
         localPosition.dy / size.height,
       ),
     );
-  }
-
-  List<GardenPlant> _displayPlants() {
-    if (erasing) return plants;
-    final grouped = <String, List<GardenPlant>>{};
-    for (final plant in plants) {
-      grouped.putIfAbsent(plant.crop.id, () => []).add(plant);
-    }
-    final visible = <GardenPlant>[];
-    for (final group in grouped.values) {
-      if (group.isEmpty) continue;
-      final spacing = spacingForPlant == null
-          ? cropSpacingFor(group.first.crop)
-          : spacingForPlant!(group.first);
-      if (group.length > 12 && spacing.plantCm <= 25) {
-        continue;
-      }
-      final maxVisible = spacing.plantCm <= 12
-          ? 10
-          : spacing.plantCm <= 20
-              ? 12
-              : spacing.plantCm <= 35
-                  ? 16
-                  : 24;
-      if (group.length <= maxVisible) {
-        visible.addAll(group);
-        continue;
-      }
-      final ordered = [...group]..sort((a, b) {
-          final row = a.position.dy.compareTo(b.position.dy);
-          return row == 0 ? a.position.dx.compareTo(b.position.dx) : row;
-        });
-      final step = (ordered.length / maxVisible).ceil();
-      for (var index = 0; index < ordered.length; index += step) {
-        visible.add(ordered[index]);
-      }
-    }
-    return visible;
   }
 }
 
@@ -394,253 +321,6 @@ class _PlantSpacingGridPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _PlantSpacingGridPainter oldDelegate) =>
       oldDelegate.positions != positions;
-}
-
-class _PlantingBandPainter extends CustomPainter {
-  const _PlantingBandPainter({
-    required this.bed,
-    required this.plants,
-    required this.spacingForPlant,
-    this.drawBands = true,
-    this.drawLabels = true,
-  });
-
-  final GardenBed bed;
-  final List<GardenPlant> plants;
-  final CropSpacing Function(GardenPlant plant)? spacingForPlant;
-  final bool drawBands;
-  final bool drawLabels;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final plantsByCrop = <String, List<GardenPlant>>{};
-    for (final plant in plants) {
-      plantsByCrop.putIfAbsent(plant.crop.id, () => []).add(plant);
-    }
-
-    for (final cropPlants in plantsByCrop.values) {
-      if (cropPlants.isEmpty) continue;
-      final crop = cropPlants.first.crop;
-      final spacing = spacingForPlant == null
-          ? cropSpacingFor(crop)
-          : spacingForPlant!(cropPlants.first);
-      final band = _cropBandRect(cropPlants, spacing);
-      final rect = Rect.fromLTRB(
-        band.left * size.width,
-        band.top * size.height,
-        band.right * size.width,
-        band.bottom * size.height,
-      );
-      if (rect.width < 10 || rect.height < 8) continue;
-
-      final familyColor = _cropBandColor(crop);
-      final fill = Paint()..color = familyColor.withValues(alpha: .18);
-      final stroke = Paint()
-        ..color = familyColor.withValues(alpha: .28)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1;
-      final radius = Radius.circular(rect.height < 26 ? 8 : 13);
-      final rounded = RRect.fromRectAndRadius(rect, radius);
-      if (drawBands) {
-        canvas.drawRRect(rounded, fill);
-        canvas.drawRRect(rounded, stroke);
-        _drawCropTexture(canvas, rect.deflate(3), crop, familyColor);
-      }
-
-      if (!drawLabels || rect.width < 56 || rect.height < 14) continue;
-      final label = _shortCropLabel(crop.name);
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: label,
-          style: TextStyle(
-            color: C.ink.withValues(alpha: .78),
-            fontSize: rect.height < 24 ? 9 : 10.5,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-        maxLines: 1,
-        ellipsis: '',
-      )..layout(maxWidth: rect.width - 10);
-      final pill = Rect.fromCenter(
-        center: rect.center,
-        width: textPainter.width + 12,
-        height: textPainter.height + 6,
-      );
-      if (pill.width < rect.width - 2 && pill.height < rect.height + 4) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(pill, const Radius.circular(999)),
-          Paint()..color = C.card.withValues(alpha: .74),
-        );
-        textPainter.paint(
-          canvas,
-          Offset(
-            pill.center.dx - textPainter.width / 2,
-            pill.center.dy - textPainter.height / 2,
-          ),
-        );
-      }
-    }
-  }
-
-  Rect _cropBandRect(List<GardenPlant> cropPlants, CropSpacing spacing) {
-    final plantHalfWidth =
-        (spacing.plantCm / 100 / bed.widthMeters / 2).clamp(.018, .08);
-    final rowHalfHeight =
-        (spacing.rowCm / 100 / bed.lengthMeters / 2).clamp(.018, .08);
-    var left = 1.0;
-    var top = 1.0;
-    var right = 0.0;
-    var bottom = 0.0;
-    for (final plant in cropPlants) {
-      left = plant.position.dx - plantHalfWidth < left
-          ? plant.position.dx - plantHalfWidth
-          : left;
-      top = plant.position.dy - rowHalfHeight < top
-          ? plant.position.dy - rowHalfHeight
-          : top;
-      right = plant.position.dx + plantHalfWidth > right
-          ? plant.position.dx + plantHalfWidth
-          : right;
-      bottom = plant.position.dy + rowHalfHeight > bottom
-          ? plant.position.dy + rowHalfHeight
-          : bottom;
-    }
-    return Rect.fromLTRB(
-      left.clamp(.015, .985),
-      top.clamp(.015, .985),
-      right.clamp(.015, .985),
-      bottom.clamp(.015, .985),
-    );
-  }
-
-  Color _cropBandColor(VegetableDefinition crop) => switch (crop.familyId) {
-        'root_vegetables' => const Color(0xFFE08D3C),
-        'alliums' => const Color(0xFF8E8BC8),
-        'brassicas' => const Color(0xFF4E9F55),
-        'leafy_greens' => const Color(0xFF65A83F),
-        'legumes' => const Color(0xFF2B8E73),
-        'apiaceae' => const Color(0xFF9AAB4F),
-        'berries' => const Color(0xFFC44D62),
-        'solanaceae' => const Color(0xFFD65A3A),
-        'cucurbits' => const Color(0xFFE3A93B),
-        _ => C.forest,
-      };
-
-  void _drawCropTexture(
-    Canvas canvas,
-    Rect rect,
-    VegetableDefinition crop,
-    Color familyColor,
-  ) {
-    if (rect.width < 18 || rect.height < 10) return;
-    final seed = crop.id.hashCode.abs();
-    final columns = (rect.width / 38).floor().clamp(2, 12);
-    final rows = (rect.height / 28).floor().clamp(1, 4);
-    for (var row = 0; row < rows; row++) {
-      for (var column = 0; column < columns; column++) {
-        final jitter = ((seed + row * 7 + column * 11) % 9 - 4) * .7;
-        final center = Offset(
-          rect.left + (column + .5) * rect.width / columns + jitter,
-          rect.top + (row + .5) * rect.height / rows,
-        );
-        _drawCropMark(canvas, center, crop, familyColor);
-      }
-    }
-  }
-
-  void _drawCropMark(
-    Canvas canvas,
-    Offset center,
-    VegetableDefinition crop,
-    Color familyColor,
-  ) {
-    final leaf = Paint()..color = familyColor.withValues(alpha: .58);
-    final dark = Paint()
-      ..color = C.forest.withValues(alpha: .45)
-      ..strokeWidth = 1.1
-      ..strokeCap = StrokeCap.round;
-    final root = Paint()
-      ..color = _cropRootColor(crop).withValues(alpha: .72)
-      ..style = PaintingStyle.fill;
-
-    if (crop.familyId == 'root_vegetables') {
-      canvas.drawOval(
-        Rect.fromCenter(
-            center: center + const Offset(0, 3), width: 7, height: 12),
-        root,
-      );
-      canvas.drawLine(center + const Offset(0, -4), center, dark);
-      canvas.drawOval(
-        Rect.fromCenter(
-            center: center + const Offset(-3, -4), width: 8, height: 4),
-        leaf,
-      );
-      canvas.drawOval(
-        Rect.fromCenter(
-            center: center + const Offset(3, -4), width: 8, height: 4),
-        leaf,
-      );
-      return;
-    }
-
-    if (crop.familyId == 'alliums' || crop.id == 'leek') {
-      for (final offset in const [-4.0, 0.0, 4.0]) {
-        canvas.drawLine(
-          center + Offset(offset, 6),
-          center + Offset(offset * .35, -7),
-          dark,
-        );
-      }
-      canvas.drawOval(
-        Rect.fromCenter(
-            center: center + const Offset(0, 6), width: 8, height: 5),
-        root,
-      );
-      return;
-    }
-
-    if (crop.familyId == 'brassicas' || crop.familyId == 'leafy_greens') {
-      for (var index = 0; index < 6; index++) {
-        final angle = index * 1.047;
-        final offset = Offset(
-          6 * math.cos(angle),
-          4 * math.sin(angle),
-        );
-        canvas.drawOval(
-          Rect.fromCenter(center: center + offset, width: 10, height: 7),
-          leaf,
-        );
-      }
-      canvas.drawCircle(
-          center, 3, Paint()..color = familyColor.withValues(alpha: .75));
-      return;
-    }
-
-    canvas.drawCircle(
-        center, 5, Paint()..color = familyColor.withValues(alpha: .62));
-    canvas.drawLine(
-        center + const Offset(-6, 4), center + const Offset(6, -4), dark);
-  }
-
-  Color _cropRootColor(VegetableDefinition crop) => switch (crop.id) {
-        'carrot' => const Color(0xFFE8872F),
-        'beetroot' => const Color(0xFF9E3152),
-        'radish' => const Color(0xFFD94A68),
-        'onion' => const Color(0xFFD08A32),
-        'garlic' => const Color(0xFFE8D7A7),
-        'leek' || 'spring_onion' => const Color(0xFF7AA95D),
-        _ => const Color(0xFFC87A38),
-      };
-
-  String _shortCropLabel(String name) {
-    final slash = name.split('/').first.trim();
-    return slash.isEmpty ? name : slash;
-  }
-
-  @override
-  bool shouldRepaint(covariant _PlantingBandPainter oldDelegate) =>
-      oldDelegate.plants != plants || oldDelegate.bed != bed;
 }
 
 class _PlantPatch extends StatelessWidget {
@@ -748,19 +428,23 @@ class GardenMap extends StatefulWidget {
     required this.designing,
     required this.onTap,
     required this.onMove,
+    this.bedPlants = const {},
     this.records = const [],
     this.selectedBeds = const {},
+    this.onPlanBed,
     super.key,
   });
   final int selectedBed;
   final GardenPlot plot;
   final List<GardenBed> gardenBeds;
   final Map<int, List<VegetableDefinition>> bedCrops;
+  final Map<int, List<GardenPlant>> bedPlants;
   final List<SprayRecord> records;
   final Set<int> selectedBeds;
   final bool Function(int bed) isHold;
   final bool designing;
   final ValueChanged<int> onTap;
+  final ValueChanged<GardenBed>? onPlanBed;
   final void Function(int bed, Offset delta) onMove;
 
   @override
@@ -813,7 +497,9 @@ class _GardenMapState extends State<GardenMap> {
           return Stack(
             children: [
               Positioned.fill(
-                child: CustomPaint(painter: GridPainter(widget.plot)),
+                child: RepaintBoundary(
+                  child: CustomPaint(painter: GridPainter(widget.plot)),
+                ),
               ),
               ...widget.gardenBeds.map((bed) {
                 final visibleBed =
@@ -824,10 +510,31 @@ class _GardenMapState extends State<GardenMap> {
                   visibleBed.rect.width * size.width,
                   visibleBed.rect.height * size.height,
                 );
+                final hitRect =
+                    widget.designing ? rect : _expandedBedHitRect(rect, size);
+                final childOffset = rect.topLeft - hitRect.topLeft;
+                final bedButton = BedButton(
+                  bed: visibleBed,
+                  selected: widget.selectedBed == bed.number ||
+                      widget.selectedBeds.contains(bed.number),
+                  hold: widget.isHold(bed.number),
+                  crops: widget.bedCrops[bed.number] ??
+                      const <VegetableDefinition>[],
+                  plants: widget.bedPlants[bed.number] ?? const <GardenPlant>[],
+                  activity: _bedMapActivity(widget.records, bed.number),
+                  designing: widget.designing,
+                  onTap: () => widget.onTap(bed.number),
+                  onPlanBed: widget.onPlanBed == null
+                      ? null
+                      : () => widget.onPlanBed!(bed),
+                );
                 return Positioned.fromRect(
-                  rect: rect,
+                  rect: hitRect,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
+                    onTap: widget.designing
+                        ? null
+                        : () => widget.onTap(bed.number),
                     onPanStart:
                         widget.designing ? (_) => _startDrag(bed) : null,
                     onPanUpdate: widget.designing
@@ -835,16 +542,21 @@ class _GardenMapState extends State<GardenMap> {
                         : null,
                     onPanEnd: widget.designing ? (_) => _finishDrag(bed) : null,
                     onPanCancel: widget.designing ? _cancelDrag : null,
-                    child: BedButton(
-                      bed: visibleBed,
-                      selected: widget.selectedBed == bed.number ||
-                          widget.selectedBeds.contains(bed.number),
-                      hold: widget.isHold(bed.number),
-                      crops: widget.bedCrops[bed.number] ??
-                          const <VegetableDefinition>[],
-                      activity: _bedMapActivity(widget.records, bed.number),
-                      designing: widget.designing,
-                      onTap: () => widget.onTap(bed.number),
+                    child: RepaintBoundary(
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Positioned(
+                            left: childOffset.dx,
+                            top: childOffset.dy,
+                            width: rect.width,
+                            height: rect.height,
+                            child: widget.designing
+                                ? bedButton
+                                : IgnorePointer(child: bedButton),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -855,15 +567,28 @@ class _GardenMapState extends State<GardenMap> {
       );
 }
 
+Rect _expandedBedHitRect(Rect visualRect, Size mapSize) {
+  const minTarget = 48.0;
+  final width = math.max(visualRect.width, minTarget);
+  final height = math.max(visualRect.height, minTarget);
+  final maxLeft = math.max(0.0, mapSize.width - width);
+  final maxTop = math.max(0.0, mapSize.height - height);
+  final left = (visualRect.center.dx - width / 2).clamp(0.0, maxLeft);
+  final top = (visualRect.center.dy - height / 2).clamp(0.0, maxTop);
+  return Rect.fromLTWH(left, top, width, height);
+}
+
 class BedButton extends StatelessWidget {
   const BedButton({
     required this.bed,
     required this.selected,
     required this.hold,
     required this.crops,
+    required this.plants,
     required this.activity,
     required this.designing,
     required this.onTap,
+    this.onPlanBed,
     super.key,
   });
   final GardenBed bed;
@@ -871,14 +596,24 @@ class BedButton extends StatelessWidget {
   final bool hold;
   final bool designing;
   final List<VegetableDefinition> crops;
+  final List<GardenPlant> plants;
   final BedMapActivity activity;
   final VoidCallback onTap;
+  final VoidCallback? onPlanBed;
 
   @override
   Widget build(BuildContext context) {
+    final semanticLabel = _bedMapSemanticLabel(
+      bed: bed,
+      selected: selected,
+      hold: hold,
+      crops: crops,
+      plants: plants,
+      activity: activity,
+    );
     final fill = hold
         ? const Color(0xFFFFF4DF)
-        : crops.isEmpty
+        : crops.isEmpty && plants.isEmpty
             ? const Color(0xFFF4E8D6)
             : const Color(0xFFE7F1DC);
     final border = selected
@@ -886,80 +621,89 @@ class BedButton extends StatelessWidget {
         : hold
             ? C.amber
             : C.soil.withValues(alpha: .42);
-    return CupertinoButton(
-      padding: EdgeInsets.zero,
-      onPressed: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        decoration: BoxDecoration(
-          color: fill,
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(color: border, width: selected ? 2.5 : 1.15),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: C.forest.withValues(alpha: .18),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : const [],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(7),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _BedSurfacePainter(
-                    planted: crops.isNotEmpty,
-                    hold: hold,
+    return Semantics(
+      label: semanticLabel,
+      button: true,
+      selected: selected,
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(color: border, width: selected ? 3.2 : 1.15),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: C.forest.withValues(alpha: .24),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : const [],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(7),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _BedSurfacePainter(
+                      planted: crops.isNotEmpty || plants.isNotEmpty,
+                      hold: hold,
+                    ),
                   ),
                 ),
-              ),
-              Positioned.fill(
-                child: designing
-                    ? _DesignBedMapContent(
-                        bed: bed,
-                        selected: selected,
-                        crops: crops,
-                        activity: activity,
-                      )
-                    : _OperationalBedMapContent(
-                        bed: bed,
-                        selected: selected,
-                        crops: crops,
-                        activity: activity,
-                      ),
-              ),
-              if (selected)
-                Positioned(
-                  top: 4,
-                  right: 4,
-                  child: Container(
-                    width: 18,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      color: C.forest,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: C.card, width: 1.7),
-                      boxShadow: [
-                        BoxShadow(
-                          color: C.forest.withValues(alpha: .20),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
+                Positioned.fill(
+                  child: designing
+                      ? _DesignBedMapContent(
+                          bed: bed,
+                          selected: selected,
+                          crops: crops,
+                          plants: plants,
+                          activity: activity,
+                          onPlanBed: onPlanBed,
+                        )
+                      : _OperationalBedMapContent(
+                          bed: bed,
+                          selected: selected,
+                          crops: crops,
+                          plants: plants,
+                          activity: activity,
+                          onPlanBed: onPlanBed,
                         ),
-                      ],
-                    ),
-                    child: const Icon(
-                      CupertinoIcons.check_mark,
-                      color: CupertinoColors.white,
-                      size: 11,
+                ),
+                if (selected)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: C.forest,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: C.card, width: 1.7),
+                        boxShadow: [
+                          BoxShadow(
+                            color: C.forest.withValues(alpha: .20),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        CupertinoIcons.check_mark,
+                        color: CupertinoColors.white,
+                        size: 11,
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -967,49 +711,106 @@ class BedButton extends StatelessWidget {
   }
 }
 
+String _bedMapSemanticLabel({
+  required GardenBed bed,
+  required bool selected,
+  required bool hold,
+  required List<VegetableDefinition> crops,
+  required List<GardenPlant> plants,
+  required BedMapActivity activity,
+}) {
+  final cropCounts = _bedCropCounts(crops, plants);
+  final cropText = cropCounts.isEmpty
+      ? 'no vegetables logged'
+      : cropCounts
+          .map(
+            (item) =>
+                '${item.crop.name}, ${item.count} plant${item.count == 1 ? '' : 's'}',
+          )
+          .join('; ');
+  final status = hold ? 'on withholding hold' : 'not on hold';
+  final activityText = activity.hasActivity
+      ? ', recent ${activity.latestSpray != null ? 'spray' : 'feed'} logged'
+      : '';
+  return '${selected ? 'Selected. ' : ''}${bed.label}, $cropText, $status$activityText.';
+}
+
 class _DesignBedMapContent extends StatelessWidget {
   const _DesignBedMapContent({
     required this.bed,
     required this.selected,
     required this.crops,
+    required this.plants,
     required this.activity,
+    required this.onPlanBed,
   });
 
   final GardenBed bed;
   final bool selected;
   final List<VegetableDefinition> crops;
+  final List<GardenPlant> plants;
   final BedMapActivity activity;
+  final VoidCallback? onPlanBed;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, constraints) {
           final compact =
-              constraints.maxWidth < 46 || constraints.maxHeight < 38;
+              constraints.maxWidth < 46 || constraints.maxHeight < 14;
+          final thin = !compact && constraints.maxHeight < 42;
+          final title = _BedMapTitle(
+            title: compact || thin ? '${bed.number}' : bed.label,
+            selected: selected,
+            compact: compact || thin,
+          );
           return Stack(
             children: [
-              Positioned(
-                top: 5,
-                left: 5,
-                right: selected ? 27 : 5,
-                child: Align(
-                  alignment: compact || crops.isEmpty
-                      ? Alignment.center
-                      : Alignment.topLeft,
-                  child: _BedMapTitle(
-                    title: compact ? '${bed.number}' : bed.label,
-                    selected: selected,
+              if (compact)
+                Positioned.fill(child: Center(child: title))
+              else if (thin)
+                Positioned.fill(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(5, 3, selected ? 27 : 5, 3),
+                    child: Row(
+                      children: [
+                        title,
+                        if (crops.isNotEmpty || plants.isNotEmpty) ...[
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: _BedCropIconMarkers(
+                              crops: crops,
+                              plants: plants,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Positioned(
+                  top: 5,
+                  left: 5,
+                  right: selected ? 27 : 5,
+                  child: Align(
+                    alignment:
+                        crops.isEmpty ? Alignment.center : Alignment.topLeft,
+                    child: title,
                   ),
                 ),
-              ),
-              if (crops.isNotEmpty && !compact)
+              if (!compact && !thin && (crops.isNotEmpty || plants.isNotEmpty))
                 Positioned.fill(
-                  top: 27,
-                  left: 5,
-                  right: 5,
-                  bottom: activity.hasActivity ? 30 : 5,
-                  child: _BedCropGardenPreview(crops: crops),
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      8,
+                      constraints.maxHeight < 54 ? 6 : 26,
+                      8,
+                      activity.hasActivity ? 31 : 6,
+                    ),
+                    child: _BedCropIconMarkers(crops: crops, plants: plants),
+                  ),
                 ),
-              if (activity.hasActivity && constraints.maxHeight >= 42)
+              if (!compact && !thin && activity.hasActivity)
                 Positioned(
                   left: 4,
                   bottom: 4,
@@ -1027,42 +828,76 @@ class _OperationalBedMapContent extends StatelessWidget {
     required this.bed,
     required this.selected,
     required this.crops,
+    required this.plants,
     required this.activity,
+    required this.onPlanBed,
   });
 
   final GardenBed bed;
   final bool selected;
   final List<VegetableDefinition> crops;
+  final List<GardenPlant> plants;
   final BedMapActivity activity;
+  final VoidCallback? onPlanBed;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, constraints) {
           final compact =
-              constraints.maxWidth < 46 || constraints.maxHeight < 42;
+              constraints.maxWidth < 46 || constraints.maxHeight < 14;
+          final thin = !compact && constraints.maxHeight < 42;
+          final title = _BedMapTitle(
+            title: compact || thin ? '${bed.number}' : bed.label,
+            selected: selected,
+            compact: compact || thin,
+          );
           return Stack(
             children: [
-              Positioned(
-                top: 5,
-                left: 5,
-                right: selected ? 25 : 5,
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: _BedMapTitle(
-                    title: compact ? '${bed.number}' : bed.label,
-                    selected: selected,
+              if (compact)
+                Positioned.fill(child: Center(child: title))
+              else if (thin)
+                Positioned.fill(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(5, 3, selected ? 25 : 5, 3),
+                    child: Row(
+                      children: [
+                        title,
+                        if (crops.isNotEmpty || plants.isNotEmpty) ...[
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: _BedCropIconMarkers(
+                              crops: crops,
+                              plants: plants,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Positioned(
+                  top: 5,
+                  left: 5,
+                  right: selected ? 25 : 5,
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: title,
                   ),
                 ),
-              ),
-              if (crops.isNotEmpty)
+              if (!compact && !thin && (crops.isNotEmpty || plants.isNotEmpty))
                 Positioned.fill(
-                  top: compact ? 20 : 28,
-                  bottom: activity.hasActivity ? 28 : 5,
-                  left: 5,
-                  right: 5,
-                  child: _BedCropGardenPreview(crops: crops),
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      8,
+                      constraints.maxHeight < 54 ? 6 : 26,
+                      8,
+                      activity.hasActivity ? 31 : 6,
+                    ),
+                    child: _BedCropIconMarkers(crops: crops, plants: plants),
+                  ),
                 ),
-              if (activity.hasActivity)
+              if (!compact && !thin && activity.hasActivity)
                 Positioned(
                   left: 5,
                   right: 5,
@@ -1116,15 +951,23 @@ class _BedSurfacePainter extends CustomPainter {
 }
 
 class _BedMapTitle extends StatelessWidget {
-  const _BedMapTitle({required this.title, required this.selected});
+  const _BedMapTitle({
+    required this.title,
+    required this.selected,
+    this.compact = false,
+  });
 
   final String title;
   final bool selected;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Container(
-        constraints: const BoxConstraints(maxWidth: 120),
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        constraints: BoxConstraints(maxWidth: compact ? 34 : 96, minWidth: 22),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 5 : 6,
+          vertical: compact ? 1 : 3,
+        ),
         decoration: BoxDecoration(
           color: C.card.withValues(alpha: selected ? .92 : .76),
           borderRadius: BorderRadius.circular(999),
@@ -1137,84 +980,94 @@ class _BedMapTitle extends StatelessWidget {
           style: const TextStyle(
             color: C.ink,
             fontWeight: FontWeight.w900,
-            fontSize: 11,
             height: 1.05,
-          ),
+          ).copyWith(fontSize: compact ? 9 : 10),
         ),
       );
 }
 
-class _BedCropGardenPreview extends StatelessWidget {
-  const _BedCropGardenPreview({required this.crops});
+class _BedCropIconMarkers extends StatelessWidget {
+  const _BedCropIconMarkers({required this.crops, required this.plants});
 
   final List<VegetableDefinition> crops;
+  final List<GardenPlant> plants;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, constraints) {
+          final items = _bedCropCounts(crops, plants);
+          if (items.isEmpty) return const SizedBox.shrink();
+
           final width =
-              constraints.maxWidth.isFinite ? constraints.maxWidth : 100.0;
+              constraints.maxWidth.isFinite ? constraints.maxWidth : 120.0;
           final height =
-              constraints.maxHeight.isFinite ? constraints.maxHeight : 70.0;
+              constraints.maxHeight.isFinite ? constraints.maxHeight : 28.0;
+          final shortestSide = math.min(width, height);
           final iconSize = math.min(
-              46.0, math.max(30.0, math.min(width / 2.8, height / 1.7)));
-          final visible = crops.take(width < 86 ? 3 : 5).toList();
+            20.0,
+            math.max(10.0, shortestSide * .72),
+          );
+          final markerSize = iconSize + 2;
+          final columns = math.max(1, (width / (markerSize + 2)).floor());
+          final rows = math.max(1, (height / (markerSize + 2)).floor());
+          final maxIcons = math.max(1, columns * rows);
+          final visible = items.take(maxIcons).toList(growable: false);
+          final hidden = items.length - visible.length;
+
           return Center(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 7,
-                runSpacing: 6,
-                children: [
-                  ...visible.map(
-                    (crop) => _GardenCropIconBadge(
-                      crop: crop,
-                      size: iconSize,
-                    ),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              runAlignment: WrapAlignment.center,
+              spacing: 2,
+              runSpacing: 1,
+              children: [
+                for (final item in visible)
+                  _BedCropIconDot(
+                    crop: item.crop,
+                    markerSize: markerSize,
+                    iconSize: iconSize,
                   ),
-                  if (crops.length > visible.length)
-                    _GardenMoreCropBadge(
-                      count: crops.length - visible.length,
-                      size: iconSize,
-                    ),
-                ],
-              ),
+                if (hidden > 0)
+                  _BedHiddenCropCount(count: hidden, size: markerSize),
+              ],
             ),
           );
         },
       );
 }
 
-class _GardenCropIconBadge extends StatelessWidget {
-  const _GardenCropIconBadge({required this.crop, required this.size});
+class _BedCropIconDot extends StatelessWidget {
+  const _BedCropIconDot({
+    required this.crop,
+    required this.markerSize,
+    required this.iconSize,
+  });
 
   final VegetableDefinition crop;
-  final double size;
+  final double markerSize;
+  final double iconSize;
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: size,
-        height: size,
-        padding: EdgeInsets.all(math.max(3, size * .09)),
-        decoration: BoxDecoration(
-          color: C.card.withValues(alpha: .90),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: C.forest.withValues(alpha: .12)),
-          boxShadow: [
-            BoxShadow(
-              color: C.forest.withValues(alpha: .12),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
+  Widget build(BuildContext context) => SizedBox(
+        width: markerSize,
+        height: markerSize,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            boxShadow: [
+              BoxShadow(
+                color: C.ink.withValues(alpha: .10),
+                blurRadius: 2,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Center(child: CropIcon(crop.iconPath, size: iconSize)),
         ),
-        child: CropIcon(crop.iconPath, size: size),
       );
 }
 
-class _GardenMoreCropBadge extends StatelessWidget {
-  const _GardenMoreCropBadge({required this.count, required this.size});
+class _BedHiddenCropCount extends StatelessWidget {
+  const _BedHiddenCropCount({required this.count, required this.size});
 
   final int count;
   final double size;
@@ -1223,21 +1076,57 @@ class _GardenMoreCropBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         width: size,
         height: size,
-        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: C.forest.withValues(alpha: .92),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: C.card, width: 1.5),
         ),
-        child: Text(
-          '+$count',
-          style: TextStyle(
-            color: CupertinoColors.white,
-            fontSize: math.max(11, size * .32),
-            fontWeight: FontWeight.w900,
+        child: Center(
+          child: Text(
+            '+$count',
+            style: const TextStyle(
+              color: CupertinoColors.white,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              height: 1,
+            ),
           ),
         ),
       );
+}
+
+class _GardenCropCount {
+  const _GardenCropCount({required this.crop, required this.count});
+
+  final VegetableDefinition crop;
+  final int count;
+}
+
+List<_GardenCropCount> _bedCropCounts(
+  List<VegetableDefinition> crops,
+  List<GardenPlant> plants,
+) {
+  final counts = <String, int>{};
+  for (final plant in plants) {
+    counts[plant.crop.id] = (counts[plant.crop.id] ?? 0) + 1;
+  }
+
+  final seen = <String>{};
+  final result = <_GardenCropCount>[];
+  for (final crop in crops) {
+    seen.add(crop.id);
+    result.add(_GardenCropCount(crop: crop, count: counts[crop.id] ?? 0));
+  }
+  for (final plant in plants) {
+    if (seen.add(plant.crop.id)) {
+      result.add(
+        _GardenCropCount(
+          crop: plant.crop,
+          count: counts[plant.crop.id] ?? 0,
+        ),
+      );
+    }
+  }
+  return result;
 }
 
 class GardenMapLegend extends StatelessWidget {
@@ -1331,17 +1220,23 @@ class _MapLegendIcon extends StatelessWidget {
 }
 
 class GardenMapFrame extends StatelessWidget {
-  const GardenMapFrame({required this.child, this.height = 380, super.key});
+  const GardenMapFrame({
+    required this.child,
+    this.height = 380,
+    this.showLegend = true,
+    super.key,
+  });
 
   final Widget child;
   final double height;
+  final bool showLegend;
 
   @override
   Widget build(BuildContext context) => Container(
         height: height,
         decoration: BoxDecoration(
-          color: const Color(0xFFEFE7D8),
-          borderRadius: BorderRadius.circular(22),
+          color: const Color(0xFFEDE8D8),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: C.line),
           boxShadow: softShadow,
         ),
@@ -1349,15 +1244,16 @@ class GardenMapFrame extends StatelessWidget {
         child: Column(
           children: [
             Expanded(child: child),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-              decoration: BoxDecoration(
-                color: C.card.withValues(alpha: .62),
-                border: const Border(top: BorderSide(color: C.line)),
+            if (showLegend)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                decoration: BoxDecoration(
+                  color: C.card.withValues(alpha: .62),
+                  border: const Border(top: BorderSide(color: C.line)),
+                ),
+                child: const GardenMapLegend(),
               ),
-              child: const GardenMapLegend(),
-            ),
           ],
         ),
       );

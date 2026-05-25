@@ -124,9 +124,14 @@ class _SprayConditionPanel extends StatelessWidget {
 }
 
 class GardenRiskPanel extends StatelessWidget {
-  const GardenRiskPanel({required this.gardenRisks, super.key});
+  const GardenRiskPanel({
+    required this.gardenRisks,
+    this.onPestPressureTap,
+    super.key,
+  });
 
   final Future<GardenRiskSummary> gardenRisks;
+  final VoidCallback? onPestPressureTap;
 
   @override
   Widget build(BuildContext context) {
@@ -153,6 +158,7 @@ class GardenRiskPanel extends StatelessWidget {
           title: 'Blenheim garden risks',
           subtitle:
               'Low ${summary.lowestTemperatureC.round()} C | peak ${summary.peakTemperatureC.round()} C | rain ${summary.rainNext24HoursMm.toStringAsFixed(1)} mm',
+          onPestPressureTap: onPestPressureTap,
           risks: [
             _GardenRiskItem('Frost', summary.frostRisk),
             _GardenRiskItem('Soil drying', summary.soilEvaporationRisk),
@@ -170,12 +176,14 @@ class _GardenRiskPanelBody extends StatelessWidget {
     required this.subtitle,
     this.risks = const [],
     this.loading = false,
+    this.onPestPressureTap,
   });
 
   final String title;
   final String subtitle;
   final List<_GardenRiskItem> risks;
   final bool loading;
+  final VoidCallback? onPestPressureTap;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -235,15 +243,35 @@ class _GardenRiskPanelBody extends StatelessWidget {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: risks
-                    .map(
-                      (risk) => ProductTag(
-                        label: '${risk.label}: ${_gardenRiskLabel(risk.level)}',
-                        color: _gardenRiskColor(risk.level),
-                        background: _gardenRiskBackground(risk.level),
-                      ),
-                    )
-                    .toList(),
+                children: risks.map(
+                  (risk) {
+                    final tag = ProductTag(
+                      label: '${risk.label}: ${_gardenRiskLabel(risk.level)}',
+                      color: _gardenRiskColor(risk.level),
+                      background: _gardenRiskBackground(risk.level),
+                    );
+                    if (risk.label != 'Pest pressure' ||
+                        onPestPressureTap == null) {
+                      return tag;
+                    }
+                    return CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      onPressed: onPestPressureTap,
+                      child: tag,
+                    );
+                  },
+                ).toList(),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _gardenRiskAction(risks),
+                style: const TextStyle(
+                  color: C.ink,
+                  fontSize: 12,
+                  height: 1.3,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ],
           ],
@@ -305,6 +333,32 @@ String _gardenRiskLabel(GardenRiskLevel level) => switch (level) {
       GardenRiskLevel.moderate => 'Moderate',
       GardenRiskLevel.high => 'High',
     };
+
+String _gardenRiskAction(List<_GardenRiskItem> risks) {
+  bool riskIs(String label, GardenRiskLevel level) => risks.any(
+        (risk) => risk.label == label && risk.level == level,
+      );
+
+  if (riskIs('Soil drying', GardenRiskLevel.high)) {
+    return 'Next: Check soil moisture today; water deeply if the top 3 cm is dry and mulch exposed beds.';
+  }
+  if (riskIs('Pest pressure', GardenRiskLevel.high)) {
+    return 'Next: Inspect leaf undersides and tap Pest pressure for matching profiles and products.';
+  }
+  if (riskIs('Frost', GardenRiskLevel.high)) {
+    return 'Next: Cover tender seedlings tonight and delay spraying until plants recover.';
+  }
+  if (riskIs('Soil drying', GardenRiskLevel.moderate)) {
+    return 'Next: Check beds this evening and protect soil with mulch if it is drying fast.';
+  }
+  if (riskIs('Pest pressure', GardenRiskLevel.moderate)) {
+    return 'Next: Scout soft growth for aphids, mites, caterpillars, and early disease pressure.';
+  }
+  if (riskIs('Frost', GardenRiskLevel.moderate)) {
+    return 'Next: Keep covers ready for tender crops and avoid late-day foliar sprays.';
+  }
+  return 'Next: Low risk today. Keep routine bed checks and log any changes.';
+}
 
 Color _gardenRiskColor(GardenRiskLevel level) => switch (level) {
       GardenRiskLevel.low => C.forest,

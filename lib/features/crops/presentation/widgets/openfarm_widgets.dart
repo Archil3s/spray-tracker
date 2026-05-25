@@ -41,7 +41,7 @@ class _CropLookupFieldState extends State<CropLookupField> {
       searched = false;
     });
 
-    debounce = Timer(const Duration(milliseconds: 500), () async {
+    debounce = Timer(const Duration(milliseconds: 260), () async {
       final results = await OpenFarmService.instance.searchCrops(query);
       if (!mounted) return;
       setState(() {
