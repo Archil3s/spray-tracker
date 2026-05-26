@@ -1,0 +1,1102 @@
+part of '../../../main.dart';
+
+class SprayTrackerHome extends StatefulWidget {
+  const SprayTrackerHome({super.key});
+
+  @override
+  State<SprayTrackerHome> createState() => _SprayTrackerHomeState();
+}
+
+class _SprayTrackerHomeState extends State<SprayTrackerHome> {
+  int tab = 0;
+  int selectedBed = 4;
+  int? highlightedRecordId;
+  int nextRecordId = 1;
+  int nextPlantId = 1;
+  String message = '';
+  late String activeSeasonId = gardenSeasonIdFor(DateTime.now());
+  late DateTime activeSeasonStart = gardenSeasonStartFor(DateTime.now());
+  List<GardenSeasonSnapshot> gardenSeasons = [];
+  ProtectionView protectionView = ProtectionView.calendar;
+  String protectionSearch = '';
+
+  List<SprayProduct> products = const [];
+  bool productsLoading = true;
+  final Map<int, List<VegetableDefinition>> bedCrops = {};
+  final Map<int, List<GardenPlant>> bedPlants = {};
+  GardenPlot gardenPlot = defaultGardenPlot;
+  List<GardenBed> gardenLayout = [...defaultGardenBeds];
+  List<SprayRecord> records = [];
+  late final Future<List<SprayForecastHour>> forecastHours;
+  late final Future<SprayConditionSummary> sprayConditions;
+  late final Future<GardenRiskSummary> gardenRisks;
+
+  @override
+  void initState() {
+    super.initState();
+    forecastHours = OpenMeteoService.instance.getBlenheimForecastHours();
+    sprayConditions = _loadSprayConditions(forecastHours);
+    gardenRisks = forecastHours.then(summarizeGardenRisks);
+    _seedBeds();
+    _loadSavedGarden();
+    _loadProducts();
+  }
+
+  Future<SprayConditionSummary> _loadSprayConditions(
+    Future<List<SprayForecastHour>> forecast,
+  ) async {
+    final summary = summarizeSprayConditions(await forecast);
+    unawaited(_scheduleSprayWindowReminder(summary));
+    return summary;
+  }
+
+  Future<void> _scheduleSprayWindowReminder(
+    SprayConditionSummary summary,
+  ) async {
+    try {
+      await HarvestReminderService.instance.scheduleSprayWindow(
+        planSprayWindowReminder(
+          summary.nextGoodWindow,
+          now: DateTime.now(),
+        ),
+      );
+    } catch (_) {
+      // Weather guidance remains useful when notification permission is denied.
+    }
+  }
+
+  void _seedBeds() {
+    VegetableDefinition byId(String id) => vegetableLibrary.firstWhere(
+          (crop) => crop.id == id,
+          orElse: () => vegetableLibrary.first,
+        );
+    bedCrops[4] = [byId('tomato'), byId('chilli'), byId('capsicum')];
+    bedCrops[5] = [byId('onion'), byId('garlic')];
+    bedCrops[9] = [byId('zucchini')];
+    bedCrops[2] = [byId('lettuce')];
+    final seeded = _defaultPlantingsForCrops(bedCrops);
+    bedPlants
+      ..clear()
+      ..addAll(seeded);
+    nextPlantId = _nextGardenPlantId(seeded);
+  }
+
+  Future<void> _loadSavedGarden() async {
+    try {
+      final snapshot = await LocalGardenRepository.instance.load();
+      if (!mounted || snapshot == null) return;
+
+      _applyGardenSnapshot(snapshot, 'Garden loaded from this phone');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        message = 'Saved garden could not be loaded';
+      });
+    }
+  }
+
+  void _applyGardenSnapshot(GardenSnapshot snapshot, String nextMessage) {
+    final seasonSource = _activeSeasonFromSnapshot(snapshot);
+    _applySeasonSnapshot(
+      seasonSource,
+      _mergeSeasonList(snapshot.seasons, seasonSource),
+      nextMessage,
+    );
+  }
+
+  void _applySeasonSnapshot(
+    GardenSeasonSnapshot seasonSource,
+    List<GardenSeasonSnapshot> allSeasons,
+    String nextMessage,
+  ) {
+    final restoredBedCrops = _restoreBedCrops(seasonSource.bedCropIds);
+    final restoredPlants = seasonSource.plants.isEmpty
+        ? _defaultPlantingsForCrops(restoredBedCrops)
+        : _restoreGardenPlants(seasonSource.plants);
+    _addPlantCrops(restoredBedCrops, restoredPlants);
+    final restoredRecords =
+        seasonSource.records.map(_recordFromStorage).toList(growable: false);
+    final restoredLayout = _restoreGardenLayout(seasonSource.beds);
+    final restoredPlot = GardenPlot(
+      widthMeters: seasonSource.plotWidthMeters > 0
+          ? seasonSource.plotWidthMeters
+          : defaultGardenPlot.widthMeters,
+      lengthMeters: seasonSource.plotLengthMeters > 0
+          ? seasonSource.plotLengthMeters
+          : defaultGardenPlot.lengthMeters,
+    );
+    if (!mounted) return;
+    setState(() {
+      activeSeasonId = seasonSource.id;
+      activeSeasonStart = seasonSource.startedAt;
+      gardenSeasons = allSeasons;
+      bedCrops
+        ..clear()
+        ..addAll(restoredBedCrops);
+      bedPlants
+        ..clear()
+        ..addAll(restoredPlants);
+      if (restoredLayout.isNotEmpty) {
+        gardenLayout = restoredLayout;
+      }
+      gardenPlot = restoredPlot;
+      records = restoredRecords;
+      final nextRecordFromRecords = _nextRecordIdFromRecords(restoredRecords);
+      nextRecordId = seasonSource.nextRecordId > nextRecordFromRecords
+          ? seasonSource.nextRecordId
+          : nextRecordFromRecords;
+      nextPlantId = _nextGardenPlantId(restoredPlants);
+      message = nextMessage;
+    });
+    unawaited(_restoreHarvestReminders(restoredRecords));
+  }
+
+  GardenSeasonSnapshot _activeSeasonFromSnapshot(GardenSnapshot snapshot) {
+    if (snapshot.seasons.isEmpty) {
+      final startedAt = gardenSeasonStartFor(DateTime.now());
+      return _seasonFromSnapshot(
+        snapshot: snapshot,
+        id: gardenSeasonIdFor(startedAt),
+        label: gardenSeasonLabelFor(startedAt),
+        startedAt: startedAt,
+      );
+    }
+
+    final fallback = snapshot.seasons.first;
+    final active = snapshot.seasons.firstWhere(
+      (season) => season.id == snapshot.activeSeasonId,
+      orElse: () => fallback,
+    );
+    return active;
+  }
+
+  GardenSeasonSnapshot _seasonFromSnapshot({
+    required GardenSnapshot snapshot,
+    required String id,
+    required String label,
+    required DateTime startedAt,
+  }) =>
+      GardenSeasonSnapshot(
+        id: id,
+        label: label,
+        startedAt: startedAt,
+        nextRecordId: snapshot.nextRecordId,
+        bedCropIds: snapshot.bedCropIds,
+        records: snapshot.records,
+        beds: snapshot.beds,
+        plants: snapshot.plants,
+        plotWidthMeters: snapshot.plotWidthMeters,
+        plotLengthMeters: snapshot.plotLengthMeters,
+      );
+
+  List<GardenSeasonSnapshot> _mergeSeasonList(
+    List<GardenSeasonSnapshot> source,
+    GardenSeasonSnapshot active,
+  ) {
+    final seasons = [...source];
+    final index = seasons.indexWhere((season) => season.id == active.id);
+    if (index == -1) {
+      seasons.add(active);
+    } else {
+      seasons[index] = active;
+    }
+    seasons.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+    return List.unmodifiable(seasons);
+  }
+
+  Map<int, List<VegetableDefinition>> _restoreBedCrops(
+    Map<int, List<String>> bedCropIds,
+  ) {
+    final cropsById = {for (final crop in vegetableLibrary) crop.id: crop};
+    return {
+      for (final entry in bedCropIds.entries)
+        entry.key: entry.value
+            .map((id) => cropsById[id])
+            .whereType<VegetableDefinition>()
+            .toList(growable: false),
+    }..removeWhere((_, crops) => crops.isEmpty);
+  }
+
+  Map<int, List<GardenPlant>> _defaultPlantingsForCrops(
+    Map<int, List<VegetableDefinition>> cropsByBed,
+  ) {
+    var id = 1;
+    return {
+      for (final entry in cropsByBed.entries)
+        entry.key: [
+          for (var index = 0; index < entry.value.length; index++)
+            GardenPlant(
+              id: id++,
+              bed: entry.key,
+              crop: entry.value[index],
+              position: defaultPlantPosition(index),
+            ),
+        ],
+    };
+  }
+
+  Map<int, List<GardenPlant>> _restoreGardenPlants(
+    List<StoredGardenPlant> storedPlants,
+  ) {
+    final cropsById = {for (final crop in vegetableLibrary) crop.id: crop};
+    final plants = <int, List<GardenPlant>>{};
+    for (final plant in storedPlants) {
+      final crop = cropsById[plant.cropId];
+      if (crop == null) continue;
+      plants.putIfAbsent(plant.bed, () => []).add(
+            GardenPlant(
+              id: plant.id,
+              bed: plant.bed,
+              crop: crop,
+              position: _boundedPlantPosition(Offset(plant.x, plant.y)),
+            ),
+          );
+    }
+    return plants;
+  }
+
+  void _addPlantCrops(
+    Map<int, List<VegetableDefinition>> cropsByBed,
+    Map<int, List<GardenPlant>> plantsByBed,
+  ) {
+    for (final entry in plantsByBed.entries) {
+      final crops = [...cropsByBed[entry.key] ?? <VegetableDefinition>[]];
+      for (final plant in entry.value) {
+        if (!crops.any((crop) => crop.id == plant.crop.id)) {
+          crops.add(plant.crop);
+        }
+      }
+      if (crops.isNotEmpty) cropsByBed[entry.key] = crops;
+    }
+  }
+
+  int _nextGardenPlantId(Map<int, List<GardenPlant>> plantsByBed) {
+    var next = 1;
+    for (final plants in plantsByBed.values) {
+      for (final plant in plants) {
+        if (plant.id >= next) next = plant.id + 1;
+      }
+    }
+    return next;
+  }
+
+  List<GardenBed> _restoreGardenLayout(List<StoredGardenBed> beds) => beds
+      .map(
+        (bed) => GardenBed(
+          bed.number,
+          Rect.fromLTWH(bed.left, bed.top, bed.width, bed.height),
+          name: bed.name,
+          widthMeters: bed.widthMeters > 0 ? bed.widthMeters : null,
+          lengthMeters: bed.lengthMeters > 0 ? bed.lengthMeters : null,
+        ),
+      )
+      .where((bed) => bed.rect.width > 0 && bed.rect.height > 0)
+      .toList(growable: false);
+
+  int _nextRecordIdFromRecords(List<SprayRecord> records) => records.fold(
+        1,
+        (next, record) => record.id >= next ? record.id + 1 : next,
+      );
+
+  SprayRecord _recordFromStorage(StoredSprayRecord record) => SprayRecord(
+        id: record.id,
+        beds: record.beds,
+        crops: record.crops.isEmpty ? const ['Whole bed'] : record.crops,
+        cropProfiles: const {},
+        targetId: record.targetId,
+        product: record.product,
+        productId: record.productId,
+        reason: record.reason,
+        notes: record.notes,
+        date: record.date,
+        days: record.days,
+      );
+
+  Future<void> _restoreHarvestReminders(List<SprayRecord> savedRecords) async {
+    for (final record in savedRecords) {
+      await _scheduleHarvestReminder(record);
+    }
+  }
+
+  Future<void> _loadProducts() async {
+    try {
+      final loaded = await AcvmProductRepository.instance.getAll();
+      if (!mounted) return;
+      setState(() {
+        products = loaded;
+        productsLoading = false;
+        message = 'Loaded ${loaded.length} NZ spray products';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        products = fallbackProducts();
+        productsLoading = false;
+        message = 'Using fallback products - asset failed to load';
+      });
+    }
+  }
+
+  void addCrop(int bed, VegetableDefinition crop) {
+    final next = [...bedCrops[bed] ?? <VegetableDefinition>[]];
+    if (!next.any((item) => item.id == crop.id)) next.add(crop);
+    setState(() {
+      bedCrops[bed] = next;
+      selectedBed = bed;
+      message = '${crop.name} added to Bed $bed';
+    });
+    unawaited(_saveGarden());
+  }
+
+  void removeCrop(int bed, VegetableDefinition crop) {
+    final next = [...bedCrops[bed] ?? <VegetableDefinition>[]]
+      ..removeWhere((item) => item.id == crop.id);
+    final nextPlants = [...bedPlants[bed] ?? <GardenPlant>[]]
+      ..removeWhere((plant) => plant.crop.id == crop.id);
+    setState(() {
+      if (next.isEmpty) {
+        bedCrops.remove(bed);
+      } else {
+        bedCrops[bed] = next;
+      }
+      if (nextPlants.isEmpty) {
+        bedPlants.remove(bed);
+      } else {
+        bedPlants[bed] = nextPlants;
+      }
+      message = '${crop.name} removed from Bed $bed';
+    });
+    unawaited(_saveGarden());
+  }
+
+  GardenPlant addGardenPlant(
+    int bed,
+    VegetableDefinition crop,
+    Offset position,
+  ) =>
+      addGardenPlants(bed, crop, [position]).single;
+
+  List<GardenPlant> addGardenPlants(
+    int bed,
+    VegetableDefinition crop,
+    List<Offset> positions,
+  ) {
+    if (positions.isEmpty) return const [];
+    final plants = [
+      for (var index = 0; index < positions.length; index++)
+        GardenPlant(
+          id: nextPlantId + index,
+          bed: bed,
+          crop: crop,
+          position: _boundedPlantPosition(positions[index]),
+        ),
+    ];
+    final nextCrops = [...bedCrops[bed] ?? <VegetableDefinition>[]];
+    if (!nextCrops.any((item) => item.id == crop.id)) nextCrops.add(crop);
+    setState(() {
+      nextPlantId += plants.length;
+      bedPlants[bed] = [...bedPlants[bed] ?? <GardenPlant>[], ...plants];
+      bedCrops[bed] = nextCrops;
+      selectedBed = bed;
+      message = plants.length == 1
+          ? '${crop.name} planted in Bed $bed'
+          : '${plants.length} ${crop.name} plants added to Bed $bed';
+    });
+    unawaited(_saveGarden());
+    return plants;
+  }
+
+  void removeGardenPlant(int bed, int plantId) {
+    final plants = bedPlants[bed] ?? const <GardenPlant>[];
+    GardenPlant? removed;
+    for (final plant in plants) {
+      if (plant.id == plantId) {
+        removed = plant;
+        break;
+      }
+    }
+    if (removed == null) return;
+    final removedPlant = removed;
+    final nextPlants = plants.where((plant) => plant.id != plantId).toList();
+    final cropStillPlanted =
+        nextPlants.any((plant) => plant.crop.id == removedPlant.crop.id);
+    final nextCrops = [...bedCrops[bed] ?? <VegetableDefinition>[]];
+    if (!cropStillPlanted) {
+      nextCrops.removeWhere((crop) => crop.id == removedPlant.crop.id);
+    }
+    setState(() {
+      if (nextPlants.isEmpty) {
+        bedPlants.remove(bed);
+      } else {
+        bedPlants[bed] = nextPlants;
+      }
+      if (nextCrops.isEmpty) {
+        bedCrops.remove(bed);
+      } else {
+        bedCrops[bed] = nextCrops;
+      }
+      message = '${removedPlant.crop.name} removed from Bed $bed';
+    });
+    unawaited(_saveGarden());
+  }
+
+  void addGardenBed() {
+    final number = gardenLayout.fold(
+          0,
+          (largest, bed) => bed.number > largest ? bed.number : largest,
+        ) +
+        1;
+    final offset = ((number - 1) % 5) * .045;
+    final bed = GardenBed(
+      number,
+      Rect.fromLTWH(
+        .10 + offset,
+        .12 + offset,
+        1 / gardenPlot.widthMeters,
+        2 / gardenPlot.lengthMeters,
+      ),
+      widthMeters: 1,
+      lengthMeters: 2,
+    ).sizeToMeters(1, 2, plot: gardenPlot);
+    setState(() {
+      gardenLayout = [...gardenLayout, bed];
+      selectedBed = bed.number;
+      message = '${bed.label} added';
+    });
+    unawaited(_saveGarden());
+  }
+
+  void renameGardenBed(int bedNumber, String name) {
+    final current = _bedByNumber(bedNumber);
+    _updateGardenBed(
+      bedNumber,
+      (bed) => bed.copyWith(name: name.trim()),
+      '${current.label} renamed',
+    );
+  }
+
+  void moveGardenBed(int bedNumber, Offset delta) {
+    _updateGardenBed(bedNumber, (bed) => bed.move(delta));
+  }
+
+  void resizeGardenBed(int bedNumber, Offset delta) {
+    _updateGardenBed(bedNumber, (bed) => bed.resize(delta, plot: gardenPlot));
+  }
+
+  void sizeGardenBed(int bedNumber, double widthMeters, double lengthMeters) {
+    _updateGardenBed(
+      bedNumber,
+      (bed) => bed.sizeToMeters(widthMeters, lengthMeters, plot: gardenPlot),
+      'Bed size updated',
+    );
+  }
+
+  void rotateGardenBed(int bedNumber) {
+    _updateGardenBed(
+      bedNumber,
+      (bed) => bed.rotate(plot: gardenPlot),
+      'Bed rotated',
+    );
+  }
+
+  void duplicateGardenBed(int bedNumber) {
+    final source = _bedByNumber(bedNumber);
+    final number = gardenLayout.fold(
+          0,
+          (largest, bed) => bed.number > largest ? bed.number : largest,
+        ) +
+        1;
+    final copy = GardenBed(
+      number,
+      source.rect,
+      name: source.name.isEmpty ? '' : '${source.name} copy',
+      widthMeters: source.widthMeters,
+      lengthMeters: source.lengthMeters,
+    ).move(const Offset(.04, .04));
+    setState(() {
+      gardenLayout = [...gardenLayout, copy];
+      selectedBed = copy.number;
+      message = '${copy.label} added';
+    });
+    unawaited(_saveGarden());
+  }
+
+  void sizeGardenPlot(double widthMeters, double lengthMeters) {
+    final nextPlot = GardenPlot(
+      widthMeters: widthMeters,
+      lengthMeters: lengthMeters,
+    );
+    setState(() {
+      gardenPlot = nextPlot;
+      gardenLayout = [
+        for (final bed in gardenLayout)
+          bed.sizeToMeters(bed.widthMeters, bed.lengthMeters, plot: nextPlot),
+      ];
+      message = 'Garden plot size updated';
+    });
+    unawaited(_saveGarden());
+  }
+
+  void removeGardenBed(int bedNumber) {
+    if (gardenLayout.length <= 1) return;
+    setState(() {
+      gardenLayout =
+          gardenLayout.where((bed) => bed.number != bedNumber).toList();
+      bedCrops.remove(bedNumber);
+      bedPlants.remove(bedNumber);
+      selectedBed = gardenLayout.first.number;
+      message = 'Bed removed';
+    });
+    unawaited(_saveGarden());
+  }
+
+  void resetGardenLayout() {
+    setState(() {
+      gardenLayout = [...defaultGardenBeds];
+      selectedBed = gardenLayout.first.number;
+      message = 'Garden layout reset';
+    });
+    unawaited(_saveGarden());
+  }
+
+  Future<void> hardResetBeds() async {
+    final recordsToCancel = [...records];
+    for (final record in recordsToCancel) {
+      await HarvestReminderService.instance.cancel(record.id);
+    }
+    if (!mounted) return;
+    setState(() {
+      gardenPlot = defaultGardenPlot;
+      gardenLayout = [...defaultGardenBeds];
+      bedCrops.clear();
+      bedPlants.clear();
+      records = [];
+      nextRecordId = 1;
+      nextPlantId = 1;
+      selectedBed = gardenLayout.first.number;
+      highlightedRecordId = null;
+      message = '${gardenSeasonLabelFor(activeSeasonStart)} reset';
+    });
+    await _saveGarden();
+  }
+
+  void switchGardenSeason(String seasonId) {
+    final seasons = _mergeSeasonList(gardenSeasons, _currentSeasonFromState());
+    final season = seasons.firstWhere(
+      (item) => item.id == seasonId,
+      orElse: () => seasons.first,
+    );
+    _applySeasonSnapshot(
+      season,
+      seasons,
+      'Opened ${_seasonLabel(season)}',
+    );
+    unawaited(_saveGarden());
+  }
+
+  void createNextGardenSeason() {
+    final seasons = _mergeSeasonList(gardenSeasons, _currentSeasonFromState());
+    var nextStart = nextGardenSeasonStart(activeSeasonStart);
+    while (seasons.any((season) => season.id == gardenSeasonIdFor(nextStart))) {
+      nextStart = nextGardenSeasonStart(nextStart);
+    }
+    final nextSeason = GardenSeasonSnapshot(
+      id: gardenSeasonIdFor(nextStart),
+      label: gardenSeasonLabelFor(nextStart),
+      startedAt: nextStart,
+      nextRecordId: 1,
+      bedCropIds: const {},
+      records: const [],
+      beds: gardenLayout.map(_bedToStorage).toList(growable: false),
+      plants: const [],
+      plotWidthMeters: gardenPlot.widthMeters,
+      plotLengthMeters: gardenPlot.lengthMeters,
+    );
+    _applySeasonSnapshot(
+      nextSeason,
+      _mergeSeasonList(seasons, nextSeason),
+      'Started ${nextSeason.label}',
+    );
+    unawaited(_saveGarden());
+  }
+
+  String _seasonLabel(GardenSeasonSnapshot season) =>
+      season.label.trim().isEmpty
+          ? gardenSeasonLabelFor(season.startedAt)
+          : season.label.trim();
+
+  GardenBed _bedByNumber(int number) => gardenLayout.firstWhere(
+        (bed) => bed.number == number,
+        orElse: () => gardenLayout.first,
+      );
+
+  void _updateGardenBed(
+    int bedNumber,
+    GardenBed Function(GardenBed bed) update, [
+    String? nextMessage,
+  ]) {
+    setState(() {
+      gardenLayout = [
+        for (final bed in gardenLayout)
+          if (bed.number == bedNumber) update(bed) else bed,
+      ];
+      if (nextMessage != null) {
+        message = nextMessage;
+      }
+    });
+    unawaited(_saveGarden());
+  }
+
+  void saveSpray({
+    required Set<int> beds,
+    required Set<String> crops,
+    required Map<String, OpenFarmCrop> cropProfiles,
+    required String targetId,
+    required SprayProduct product,
+    required String reason,
+    required String notes,
+    required int days,
+  }) {
+    if (beds.isEmpty) {
+      setState(() {
+        message = 'Select at least one bed before saving a spray record';
+      });
+      return;
+    }
+    _addSprayRecord(
+      beds: beds,
+      crops: crops,
+      cropProfiles: cropProfiles,
+      targetId: targetId,
+      product: product,
+      reason: reason,
+      notes: notes,
+      days: days,
+      nextTab: 3,
+      nextMessage: 'Spray record saved and opened',
+    );
+  }
+
+  void saveCalendarAction({
+    required PreventativeCalendarItem item,
+    required SprayProduct product,
+    required List<PreventativeCalendarItem> coveredItems,
+  }) {
+    final covered = coveredItems.isEmpty ? [item] : coveredItems;
+    final crops = covered.map((entry) => entry.crop.name).toSet();
+    final targets = covered
+        .map((entry) => protectionTargetLabel(entry.target))
+        .toSet()
+        .join(', ');
+    final issues = covered
+        .expand((entry) => entry.issues)
+        .where((issue) => issue.trim().isNotEmpty)
+        .take(4)
+        .join(', ');
+    _addSprayRecord(
+      beds: {item.bed.number},
+      crops: crops,
+      cropProfiles: const {},
+      targetId: _targetId(item.target),
+      product: product,
+      reason: issues.isEmpty ? 'Calendar ${item.title}' : issues,
+      notes:
+          'Logged from calendar. Marked ${covered.length} ${covered.length == 1 ? 'action' : 'actions'} done for $targets. Next checks recalculate automatically.',
+      days: product.withholdingDays,
+      nextTab: 5,
+      nextMessage:
+          '${product.name} logged for ${item.bed.label}; next countdown updated',
+    );
+  }
+
+  void _addSprayRecord({
+    required Set<int> beds,
+    required Set<String> crops,
+    required Map<String, OpenFarmCrop> cropProfiles,
+    required String targetId,
+    required SprayProduct product,
+    required String reason,
+    required String notes,
+    required int days,
+    required int nextTab,
+    required String nextMessage,
+  }) {
+    final sortedBeds = beds.toList()..sort();
+    final sortedCrops = crops.toList()..sort();
+    final record = SprayRecord(
+      id: nextRecordId,
+      beds: sortedBeds,
+      crops: sortedCrops.isEmpty ? ['Whole bed'] : sortedCrops,
+      cropProfiles: Map.unmodifiable(cropProfiles),
+      targetId: targetId,
+      product: product.name,
+      productId: product.id,
+      reason: reason.trim(),
+      notes: notes.trim(),
+      date: DateTime.now(),
+      days: days,
+    );
+    setState(() {
+      nextRecordId++;
+      records = [record, ...records];
+      selectedBed = sortedBeds.first;
+      highlightedRecordId = record.id;
+      message = nextMessage;
+      tab = nextTab;
+    });
+    unawaited(_saveGarden());
+    unawaited(_scheduleHarvestReminder(record));
+  }
+
+  Future<void> _scheduleHarvestReminder(SprayRecord record) async {
+    if (record.days <= 0) return;
+
+    try {
+      await HarvestReminderService.instance.schedule(
+        HarvestReminder(
+          id: record.id,
+          safeAt: record.safeDate,
+          beds: record.beds,
+          crops: record.crops,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        message = 'Spray record saved. Harvest reminder was not scheduled.';
+      });
+    }
+  }
+
+  void deleteRecord(int id) {
+    unawaited(HarvestReminderService.instance.cancel(id));
+    setState(() {
+      records = records.where((record) => record.id != id).toList();
+      message = 'Record removed';
+    });
+    unawaited(_saveGarden());
+  }
+
+  Future<void> _saveGarden() async {
+    try {
+      await LocalGardenRepository.instance.save(_snapshotFromState());
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        message = 'Garden change saved for now, but local storage failed';
+      });
+    }
+  }
+
+  GardenSnapshot _snapshotFromState() {
+    final current = _currentSeasonFromState();
+    final seasons = _mergeSeasonList(gardenSeasons, current);
+    return GardenSnapshot(
+      activeSeasonId: current.id,
+      seasons: seasons,
+      nextRecordId: current.nextRecordId,
+      bedCropIds: current.bedCropIds,
+      records: current.records,
+      beds: current.beds,
+      plants: current.plants,
+      plotWidthMeters: current.plotWidthMeters,
+      plotLengthMeters: current.plotLengthMeters,
+    );
+  }
+
+  GardenSeasonSnapshot _currentSeasonFromState() => GardenSeasonSnapshot(
+        id: activeSeasonId,
+        label: gardenSeasonLabelFor(activeSeasonStart),
+        startedAt: activeSeasonStart,
+        nextRecordId: nextRecordId,
+        bedCropIds: {
+          for (final entry in bedCrops.entries)
+            entry.key: entry.value.map((crop) => crop.id).toList(),
+        },
+        records: records.map(_recordToStorage).toList(growable: false),
+        beds: gardenLayout.map(_bedToStorage).toList(growable: false),
+        plants: bedPlants.values
+            .expand((plants) => plants)
+            .map(_plantToStorage)
+            .toList(growable: false),
+        plotWidthMeters: gardenPlot.widthMeters,
+        plotLengthMeters: gardenPlot.lengthMeters,
+      );
+
+  Future<void> saveGardenBackupFile() async {
+    try {
+      final saved = await GardenBackupFileService.instance.saveBackupFile(
+        fileName: _gardenBackupFileName(),
+        content: encodeGardenBackupFile(_snapshotFromState()),
+      );
+      if (!mounted) return;
+      setState(() {
+        message = saved ? 'Garden backup file saved' : 'Backup save cancelled';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        message = 'Garden backup file could not be saved';
+      });
+    }
+  }
+
+  String _gardenBackupFileName() {
+    final now = DateTime.now();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return 'spray-tracker-${now.year}-${two(now.month)}-${two(now.day)}-'
+        '${two(now.hour)}${two(now.minute)}.$gardenBackupFileExtension';
+  }
+
+  Future<void> restoreGardenBackupFile() async {
+    try {
+      final raw = await GardenBackupFileService.instance.loadBackupFile();
+      if (!mounted) return;
+      if (raw == null || raw.trim().isEmpty) {
+        setState(() {
+          message = 'Backup load cancelled';
+        });
+        return;
+      }
+      final snapshot = decodeGardenBackupFile(raw);
+      if (snapshot == null) {
+        setState(() {
+          message = 'Backup file was not valid';
+        });
+        return;
+      }
+      _applyGardenSnapshot(snapshot, 'Garden backup file loaded');
+      await _saveGarden();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        message = 'Garden backup file could not be loaded';
+      });
+    }
+  }
+
+  Future<void> reloadGardenBackup() async {
+    try {
+      final snapshot = await LocalGardenRepository.instance.load();
+      if (!mounted) return;
+      if (snapshot == null) {
+        setState(() {
+          message = 'No saved garden found on this phone';
+        });
+        return;
+      }
+      _applyGardenSnapshot(snapshot, 'Garden reloaded from this phone');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        message = 'Saved garden could not be reloaded';
+      });
+    }
+  }
+
+  StoredSprayRecord _recordToStorage(SprayRecord record) => StoredSprayRecord(
+        id: record.id,
+        beds: record.beds,
+        crops: record.crops,
+        targetId: record.targetId,
+        product: record.product,
+        productId: record.productId,
+        reason: record.reason,
+        notes: record.notes,
+        date: record.date,
+        days: record.days,
+      );
+
+  StoredGardenBed _bedToStorage(GardenBed bed) => StoredGardenBed(
+        number: bed.number,
+        name: bed.name,
+        left: bed.rect.left,
+        top: bed.rect.top,
+        width: bed.rect.width,
+        height: bed.rect.height,
+        widthMeters: bed.widthMeters,
+        lengthMeters: bed.lengthMeters,
+      );
+
+  StoredGardenPlant _plantToStorage(GardenPlant plant) => StoredGardenPlant(
+        id: plant.id,
+        bed: plant.bed,
+        cropId: plant.crop.id,
+        x: plant.position.dx,
+        y: plant.position.dy,
+      );
+
+  bool bedOnHold(int bed) =>
+      records.any((record) => record.beds.contains(bed) && record.onHold);
+
+  void openBed(int bed) {
+    setState(() {
+      selectedBed = bed;
+      tab = 1;
+      message = 'Opened Bed $bed';
+    });
+  }
+
+  void openRecord(SprayRecord record) {
+    setState(() {
+      highlightedRecordId = record.id;
+      selectedBed = record.beds.isEmpty ? selectedBed : record.beds.first;
+      tab = 3;
+      message = 'Opened spray record ${record.id}';
+    });
+  }
+
+  void openProtectionProfiles({
+    required ProtectionView view,
+    String search = '',
+  }) {
+    setState(() {
+      protectionView = view;
+      protectionSearch = search;
+      tab = 4;
+      message = view == ProtectionView.pests
+          ? 'Opened pest pressure profiles'
+          : 'Opened protection profiles';
+    });
+  }
+
+  int get clearBeds =>
+      gardenLayout.where((bed) => !bedOnHold(bed.number)).length;
+  int get holdBeds => gardenLayout.length - clearBeds;
+  int get plantedBeds =>
+      bedCrops.values.where((items) => items.isNotEmpty).length;
+  int get cropPlacements =>
+      bedCrops.values.fold(0, (sum, list) => sum + list.length);
+  String get activeSeasonLabel => gardenSeasonLabelFor(activeSeasonStart);
+  List<GardenSeasonSnapshot> get seasonOptions =>
+      _mergeSeasonList(gardenSeasons, _currentSeasonFromState());
+  String get gardenMessage =>
+      message == 'Saved garden could not be loaded' ? message : '';
+
+  @override
+  Widget build(BuildContext context) {
+    final pages = [
+      HomeScreen(
+        clearBeds: clearBeds,
+        holdBeds: holdBeds,
+        plantedBeds: plantedBeds,
+        cropPlacements: cropPlacements,
+        gardenBeds: gardenLayout,
+        bedCrops: bedCrops,
+        records: records,
+        products: products,
+        message: message,
+        sprayConditions: sprayConditions,
+        gardenRisks: gardenRisks,
+        onPlanSpray: () => setState(() => tab = 2),
+        onOpenProducts: () => openProtectionProfiles(
+          view: ProtectionView.products,
+        ),
+        onOpenBed: openBed,
+        onOpenRecord: openRecord,
+        onOpenPestProfiles: () => openProtectionProfiles(
+          view: ProtectionView.pests,
+        ),
+        onSaveBackup: saveGardenBackupFile,
+        onRestoreBackup: restoreGardenBackupFile,
+        onReloadBackup: reloadGardenBackup,
+      ),
+      GardenScreen(
+        selectedBed: selectedBed,
+        activeSeasonId: activeSeasonId,
+        activeSeasonLabel: activeSeasonLabel,
+        seasons: seasonOptions,
+        plot: gardenPlot,
+        gardenBeds: gardenLayout,
+        bedCrops: bedCrops,
+        bedPlants: bedPlants,
+        records: records,
+        products: products,
+        gardenRisks: gardenRisks,
+        isHold: bedOnHold,
+        message: gardenMessage,
+        onSelectBed: (bed) => setState(() {
+          selectedBed = bed;
+          message = '';
+        }),
+        onOpenRecord: openRecord,
+        onOpenPestProfiles: () => openProtectionProfiles(
+          view: ProtectionView.pests,
+        ),
+        onAddCrop: addCrop,
+        onRemoveCrop: removeCrop,
+        onAddPlant: addGardenPlant,
+        onAddPlants: addGardenPlants,
+        onRemovePlant: removeGardenPlant,
+        onAddBed: addGardenBed,
+        onRenameBed: renameGardenBed,
+        onMoveBed: moveGardenBed,
+        onResizeBed: resizeGardenBed,
+        onSizeBed: sizeGardenBed,
+        onRotateBed: rotateGardenBed,
+        onDuplicateBed: duplicateGardenBed,
+        onSizePlot: sizeGardenPlot,
+        onRemoveBed: removeGardenBed,
+        onResetLayout: resetGardenLayout,
+        onHardResetBeds: () => unawaited(hardResetBeds()),
+        onSwitchSeason: switchGardenSeason,
+        onAddSeason: createNextGardenSeason,
+        onStartSpray: () => setState(() => tab = 2),
+      ),
+      SprayLogScreen(
+        key: ValueKey('${products.length}-${records.length}'),
+        initialBeds: {selectedBed},
+        plot: gardenPlot,
+        gardenBeds: gardenLayout,
+        bedCrops: bedCrops,
+        records: records,
+        products: products,
+        productsLoading: productsLoading,
+        sprayConditions: sprayConditions,
+        onSave: saveSpray,
+      ),
+      RecordsScreen(
+        records: records,
+        message: message,
+        highlightedRecordId: highlightedRecordId,
+        onDelete: deleteRecord,
+      ),
+      ProtectionScreen(
+        gardenBeds: gardenLayout,
+        bedCrops: bedCrops,
+        records: records,
+        products: products,
+        loading: productsLoading,
+        message: message,
+        gardenRisks: gardenRisks,
+        onPlanSpray: () => setState(() => tab = 2),
+        initialView: protectionView,
+        initialSearch: protectionSearch,
+      ),
+      SprayFeedCalendarScreen(
+        seasonLabel: activeSeasonLabel,
+        gardenBeds: gardenLayout,
+        bedCrops: bedCrops,
+        records: records,
+        products: products,
+        message: message,
+        gardenRisks: gardenRisks,
+        onLogAction: saveCalendarAction,
+      ),
+    ];
+
+    return CupertinoPageScaffold(
+      backgroundColor: C.canvas,
+      child: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: SmoothIndexedStack(index: tab, children: pages),
+            ),
+            BottomNav(tab: tab, onTap: (value) => setState(() => tab = value)),
+          ],
+        ),
+      ),
+    );
+  }
+}
