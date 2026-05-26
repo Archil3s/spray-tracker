@@ -372,6 +372,21 @@ class SeedlingBatchCard extends StatelessWidget {
   }
 
   void _showPlantOutSheet(BuildContext context) {
+    if (gardenBeds.isEmpty) {
+      showCupertinoModalPopup<void>(
+        context: context,
+        builder: (_) => CupertinoActionSheet(
+          title: const Text('Plant into bed'),
+          message: const Text('Add a garden bed before planting out.'),
+          cancelButton: CupertinoActionSheetAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ),
+      );
+      return;
+    }
     showCupertinoModalPopup<void>(
       context: context,
       builder: (_) => CupertinoActionSheet(
@@ -843,6 +858,7 @@ class _SeedlingPickerCard extends StatelessWidget {
       context: context,
       builder: (_) => CupertinoActionSheet(
         title: Text(title),
+        message: options.isEmpty ? const Text('No choices available.') : null,
         actions: [
           for (final option in options)
             CupertinoActionSheetAction(

@@ -554,6 +554,7 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
 
   void renameGardenBed(int bedNumber, String name) {
     final current = _bedByNumber(bedNumber);
+    if (current == null) return;
     _updateGardenBed(
       bedNumber,
       (bed) => bed.copyWith(name: name.trim()),
@@ -587,6 +588,7 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
 
   void duplicateGardenBed(int bedNumber) {
     final source = _bedByNumber(bedNumber);
+    if (source == null) return;
     final number = gardenLayout.fold(
           0,
           (largest, bed) => bed.number > largest ? bed.number : largest,
@@ -717,10 +719,13 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
           ? gardenSeasonLabelFor(season.startedAt)
           : season.label.trim();
 
-  GardenBed _bedByNumber(int number) => gardenLayout.firstWhere(
-        (bed) => bed.number == number,
-        orElse: () => gardenLayout.first,
-      );
+  GardenBed? _bedByNumber(int number) {
+    if (gardenLayout.isEmpty) return null;
+    return gardenLayout.firstWhere(
+      (bed) => bed.number == number,
+      orElse: () => gardenLayout.first,
+    );
+  }
 
   void _updateGardenBed(
     int bedNumber,
