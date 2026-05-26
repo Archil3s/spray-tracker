@@ -611,16 +611,23 @@ class BedButton extends StatelessWidget {
       plants: plants,
       activity: activity,
     );
+    final activityColor = _bedActivityPrimaryColor(activity);
     final fill = hold
         ? const Color(0xFFFFF4DF)
-        : crops.isEmpty && plants.isEmpty
-            ? const Color(0xFFF4E8D6)
-            : const Color(0xFFE7F1DC);
+        : activity.latestSpray != null
+            ? C.blueSoft
+            : activity.latestFeed != null
+                ? C.amberSoft
+                : crops.isEmpty && plants.isEmpty
+                    ? const Color(0xFFF4E8D6)
+                    : const Color(0xFFE7F1DC);
     final border = selected
         ? C.forest
         : hold
             ? C.amber
-            : C.soil.withValues(alpha: .42);
+            : activity.hasActivity
+                ? activityColor
+                : C.soil.withValues(alpha: .42);
     return Semantics(
       label: semanticLabel,
       button: true,
@@ -654,6 +661,8 @@ class BedButton extends StatelessWidget {
                     painter: _BedSurfacePainter(
                       planted: crops.isNotEmpty || plants.isNotEmpty,
                       hold: hold,
+                      sprayed: activity.latestSpray != null,
+                      fed: activity.latestFeed != null,
                     ),
                   ),
                 ),
@@ -676,6 +685,12 @@ class BedButton extends StatelessWidget {
                           onPlanBed: onPlanBed,
                         ),
                 ),
+                if (activity.hasActivity)
+                  Positioned(
+                    top: 4,
+                    right: selected ? 26 : 4,
+                    child: _BedActivityCornerMarkers(activity: activity),
+                  ),
                 if (selected)
                   Positioned(
                     top: 4,
@@ -733,6 +748,69 @@ String _bedMapSemanticLabel({
       ? ', recent ${activity.latestSpray != null ? 'spray' : 'feed'} logged'
       : '';
   return '${selected ? 'Selected. ' : ''}${bed.label}, $cropText, $status$activityText.';
+}
+
+Color _bedActivityPrimaryColor(BedMapActivity activity) {
+  if (activity.latestSpray != null) {
+    return targetById(activity.latestSpray!.targetId).color;
+  }
+  if (activity.latestFeed != null) {
+    return targetById(activity.latestFeed!.targetId).color;
+  }
+  return C.soil;
+}
+
+class _BedActivityCornerMarkers extends StatelessWidget {
+  const _BedActivityCornerMarkers({required this.activity});
+
+  final BedMapActivity activity;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (activity.latestSpray != null)
+            _BedActivityCornerDot(record: activity.latestSpray!),
+          if (activity.latestFeed != null) ...[
+            const SizedBox(width: 3),
+            _BedActivityCornerDot(record: activity.latestFeed!),
+          ],
+        ],
+      );
+}
+
+class _BedActivityCornerDot extends StatelessWidget {
+  const _BedActivityCornerDot({required this.record});
+
+  final SprayRecord record;
+
+  @override
+  Widget build(BuildContext context) {
+    final target = targetById(record.targetId);
+    final hold = record.onHold;
+    return Container(
+      width: 22,
+      height: 22,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: hold ? C.amber : target.color,
+        shape: BoxShape.circle,
+        border: Border.all(color: C.card, width: 1.7),
+        boxShadow: [
+          BoxShadow(
+            color: (hold ? C.amber : target.color).withValues(alpha: .22),
+            blurRadius: 7,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Icon(
+        hold ? CupertinoIcons.hand_raised_fill : target.icon,
+        color: CupertinoColors.white,
+        size: 12,
+      ),
+    );
+  }
 }
 
 class _DesignBedMapContent extends StatelessWidget {
@@ -911,19 +989,30 @@ class _OperationalBedMapContent extends StatelessWidget {
 }
 
 class _BedSurfacePainter extends CustomPainter {
-  const _BedSurfacePainter({required this.planted, required this.hold});
+  const _BedSurfacePainter({
+    required this.planted,
+    required this.hold,
+    required this.sprayed,
+    required this.fed,
+  });
 
   final bool planted;
   final bool hold;
+  final bool sprayed;
+  final bool fed;
 
   @override
   void paint(Canvas canvas, Size size) {
     final base = Paint()
       ..color = hold
           ? const Color(0xFFFFEAC2)
-          : planted
-              ? const Color(0xFFD9E8C9)
-              : const Color(0xFFE8D4B8);
+          : sprayed
+              ? C.blueSoft
+              : fed
+                  ? C.amberSoft
+                  : planted
+                      ? const Color(0xFFD9E8C9)
+                      : const Color(0xFFE8D4B8);
     canvas.drawRect(Offset.zero & size, base);
 
     final rowPaint = Paint()
@@ -947,7 +1036,10 @@ class _BedSurfacePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BedSurfacePainter oldDelegate) =>
-      planted != oldDelegate.planted || hold != oldDelegate.hold;
+      planted != oldDelegate.planted ||
+      hold != oldDelegate.hold ||
+      sprayed != oldDelegate.sprayed ||
+      fed != oldDelegate.fed;
 }
 
 class _BedMapTitle extends StatelessWidget {

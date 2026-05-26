@@ -201,6 +201,33 @@ List<BedProtectionSchedule> groupProtectionCalendarByBed(
   return schedules;
 }
 
+List<PreventativeCalendarItem> calendarItemsCoveredByProduct({
+  required PreventativeCalendarItem source,
+  required Iterable<PreventativeCalendarItem> items,
+  required SprayProduct product,
+}) {
+  final covered = items
+      .where((item) => item.bed.number == source.bed.number)
+      .where((item) => item.status != ProtectionStatus.blocked)
+      .where(
+        (item) => _productMatchesSprayTarget(product, _targetId(item.target)),
+      )
+      .where((item) => _sprayProductLikelyCoversCrop(product, item.crop))
+      .toList(growable: true)
+    ..sort((a, b) {
+      final target = a.target.index.compareTo(b.target.index);
+      if (target != 0) return target;
+      return a.crop.name.compareTo(b.crop.name);
+    });
+
+  if (!covered.any(
+    (item) => item.crop.id == source.crop.id && item.target == source.target,
+  )) {
+    covered.insert(0, source);
+  }
+  return List.unmodifiable(covered);
+}
+
 List<CropIssueProfile> buildCropIssueProfiles({
   required ProtectionTarget target,
   required Iterable<VegetableDefinition> crops,

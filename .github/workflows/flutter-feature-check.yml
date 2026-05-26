@@ -1,0 +1,49 @@
+name: Flutter Feature Check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  flutter-feature-check:
+    name: Analyze, test, and build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Check formatting
+        run: dart format --set-exit-if-changed .
+
+      - name: Analyze code
+        run: flutter analyze
+
+      - name: Run tests
+        if: ${{ hashFiles('test/**') != '' }}
+        run: flutter test
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+
+      - name: Upload feature screenshots
+        if: ${{ hashFiles('docs/screenshots/**') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: feature-screenshots
+          path: docs/screenshots

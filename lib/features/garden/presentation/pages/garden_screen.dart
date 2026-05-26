@@ -3,6 +3,9 @@ part of '../../../../main.dart';
 class GardenScreen extends StatefulWidget {
   const GardenScreen({
     required this.selectedBed,
+    required this.activeSeasonId,
+    required this.activeSeasonLabel,
+    required this.seasons,
     required this.plot,
     required this.gardenBeds,
     required this.bedCrops,
@@ -30,11 +33,17 @@ class GardenScreen extends StatefulWidget {
     required this.onSizePlot,
     required this.onRemoveBed,
     required this.onResetLayout,
+    required this.onHardResetBeds,
+    required this.onSwitchSeason,
+    required this.onAddSeason,
     required this.onStartSpray,
     super.key,
   });
 
   final int selectedBed;
+  final String activeSeasonId;
+  final String activeSeasonLabel;
+  final List<GardenSeasonSnapshot> seasons;
   final GardenPlot plot;
   final List<GardenBed> gardenBeds;
   final Map<int, List<VegetableDefinition>> bedCrops;
@@ -71,6 +80,9 @@ class GardenScreen extends StatefulWidget {
   final void Function(double widthMeters, double lengthMeters) onSizePlot;
   final ValueChanged<int> onRemoveBed;
   final VoidCallback onResetLayout;
+  final VoidCallback onHardResetBeds;
+  final ValueChanged<String> onSwitchSeason;
+  final VoidCallback onAddSeason;
   final VoidCallback onStartSpray;
 
   @override
@@ -99,6 +111,15 @@ class _GardenScreenState extends State<GardenScreen> {
       subtitle: 'Seasonal planting, bed crops, sprays, feeding, and rotation.',
       message: widget.message,
       children: [
+        _GardenSeasonPanel(
+          activeSeasonId: widget.activeSeasonId,
+          activeSeasonLabel: widget.activeSeasonLabel,
+          seasons: widget.seasons,
+          onSwitchSeason: widget.onSwitchSeason,
+          onAddSeason: widget.onAddSeason,
+          onHardResetBeds: widget.onHardResetBeds,
+        ),
+        const SizedBox(height: 14),
         _GardenBedCropPanel(
           bed: bed,
           crops: crops,
@@ -197,4 +218,176 @@ class _GardenScreenState extends State<GardenScreen> {
       widget.onRemovePlant(bed, plant.id);
     }
   }
+}
+
+class _GardenSeasonPanel extends StatelessWidget {
+  const _GardenSeasonPanel({
+    required this.activeSeasonId,
+    required this.activeSeasonLabel,
+    required this.seasons,
+    required this.onSwitchSeason,
+    required this.onAddSeason,
+    required this.onHardResetBeds,
+  });
+
+  final String activeSeasonId;
+  final String activeSeasonLabel;
+  final List<GardenSeasonSnapshot> seasons;
+  final ValueChanged<String> onSwitchSeason;
+  final VoidCallback onAddSeason;
+  final VoidCallback onHardResetBeds;
+
+  @override
+  Widget build(BuildContext context) => Panel(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Season / year',
+              style: TextStyle(
+                color: C.forest,
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: CupertinoButton(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 11,
+                    ),
+                    color: C.soft,
+                    borderRadius: BorderRadius.circular(14),
+                    onPressed: () => _showSeasonPicker(context),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          CupertinoIcons.calendar,
+                          size: 18,
+                          color: C.forest,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            activeSeasonLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: C.ink,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          CupertinoIcons.chevron_down,
+                          size: 16,
+                          color: C.muted,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                CupertinoButton(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 11,
+                  ),
+                  color: C.forest,
+                  borderRadius: BorderRadius.circular(14),
+                  onPressed: onAddSeason,
+                  child: const Icon(
+                    CupertinoIcons.plus,
+                    size: 19,
+                    color: CupertinoColors.white,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SecondaryButton(
+              label: 'Hard reset current season beds',
+              onPressed: () => _confirmHardReset(context),
+            ),
+          ],
+        ),
+      );
+
+  void _showSeasonPicker(BuildContext context) {
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('Season / year'),
+        message: const Text('Choose the active garden section.'),
+        actions: [
+          for (final season in seasons)
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(context);
+                onSwitchSeason(season.id);
+              },
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (season.id == activeSeasonId) ...[
+                    const Icon(
+                      CupertinoIcons.check_mark,
+                      size: 18,
+                      color: C.forest,
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(_seasonLabel(season)),
+                ],
+              ),
+            ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              onAddSeason();
+            },
+            child: const Text('Create next season'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+  }
+
+  void _confirmHardReset(BuildContext context) {
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('Hard reset beds?'),
+        message: Text(
+          'This clears crops, plant counts, spray records, and restores default beds for $activeSeasonLabel.',
+        ),
+        actions: [
+          CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.pop(context);
+              onHardResetBeds();
+            },
+            child: const Text('Reset current season'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+  }
+
+  String _seasonLabel(GardenSeasonSnapshot season) =>
+      season.label.trim().isEmpty
+          ? gardenSeasonLabelFor(season.startedAt)
+          : season.label.trim();
 }

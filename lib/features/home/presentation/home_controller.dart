@@ -13,7 +13,12 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
   int? highlightedRecordId;
   int nextRecordId = 1;
   int nextPlantId = 1;
+  int nextSeedlingBatchId = 1;
+  int nextPestSightingId = 1;
   String message = '';
+  late String activeSeasonId = gardenSeasonIdFor(DateTime.now());
+  late DateTime activeSeasonStart = gardenSeasonStartFor(DateTime.now());
+  List<GardenSeasonSnapshot> gardenSeasons = [];
   ProtectionView protectionView = ProtectionView.calendar;
   String protectionSearch = '';
 
@@ -24,6 +29,8 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
   GardenPlot gardenPlot = defaultGardenPlot;
   List<GardenBed> gardenLayout = [...defaultGardenBeds];
   List<SprayRecord> records = [];
+  List<SeedlingBatch> seedlingBatches = [];
+  List<PestSighting> pestSightings = [];
   late final Future<List<SprayForecastHour>> forecastHours;
   late final Future<SprayConditionSummary> sprayConditions;
   late final Future<GardenRiskSummary> gardenRisks;
@@ -93,24 +100,46 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
   }
 
   void _applyGardenSnapshot(GardenSnapshot snapshot, String nextMessage) {
-    final restoredBedCrops = _restoreBedCrops(snapshot.bedCropIds);
-    final restoredPlants = snapshot.plants.isEmpty
+    final seasonSource = _activeSeasonFromSnapshot(snapshot);
+    _applySeasonSnapshot(
+      seasonSource,
+      _mergeSeasonList(snapshot.seasons, seasonSource),
+      nextMessage,
+    );
+  }
+
+  void _applySeasonSnapshot(
+    GardenSeasonSnapshot seasonSource,
+    List<GardenSeasonSnapshot> allSeasons,
+    String nextMessage,
+  ) {
+    final restoredBedCrops = _restoreBedCrops(seasonSource.bedCropIds);
+    final restoredPlants = seasonSource.plants.isEmpty
         ? _defaultPlantingsForCrops(restoredBedCrops)
-        : _restoreGardenPlants(snapshot.plants);
+        : _restoreGardenPlants(seasonSource.plants);
     _addPlantCrops(restoredBedCrops, restoredPlants);
     final restoredRecords =
-        snapshot.records.map(_recordFromStorage).toList(growable: false);
-    final restoredLayout = _restoreGardenLayout(snapshot.beds);
+        seasonSource.records.map(_recordFromStorage).toList(growable: false);
+    final restoredSeedlings = seasonSource.seedlings
+        .map(_seedlingFromStorage)
+        .toList(growable: false);
+    final restoredPestSightings = seasonSource.pestSightings
+        .map(_pestSightingFromStorage)
+        .toList(growable: false);
+    final restoredLayout = _restoreGardenLayout(seasonSource.beds);
     final restoredPlot = GardenPlot(
-      widthMeters: snapshot.plotWidthMeters > 0
-          ? snapshot.plotWidthMeters
+      widthMeters: seasonSource.plotWidthMeters > 0
+          ? seasonSource.plotWidthMeters
           : defaultGardenPlot.widthMeters,
-      lengthMeters: snapshot.plotLengthMeters > 0
-          ? snapshot.plotLengthMeters
+      lengthMeters: seasonSource.plotLengthMeters > 0
+          ? seasonSource.plotLengthMeters
           : defaultGardenPlot.lengthMeters,
     );
     if (!mounted) return;
     setState(() {
+      activeSeasonId = seasonSource.id;
+      activeSeasonStart = seasonSource.startedAt;
+      gardenSeasons = allSeasons;
       bedCrops
         ..clear()
         ..addAll(restoredBedCrops);
@@ -122,11 +151,73 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
       }
       gardenPlot = restoredPlot;
       records = restoredRecords;
-      nextRecordId = _nextRecordId(snapshot, restoredRecords);
+      seedlingBatches = restoredSeedlings;
+      pestSightings = restoredPestSightings;
+      final nextRecordFromRecords = _nextRecordIdFromRecords(restoredRecords);
+      nextRecordId = seasonSource.nextRecordId > nextRecordFromRecords
+          ? seasonSource.nextRecordId
+          : nextRecordFromRecords;
       nextPlantId = _nextGardenPlantId(restoredPlants);
+      nextSeedlingBatchId = _nextSeedlingBatchId(restoredSeedlings);
+      nextPestSightingId = _nextPestSightingId(restoredPestSightings);
       message = nextMessage;
     });
     unawaited(_restoreHarvestReminders(restoredRecords));
+  }
+
+  GardenSeasonSnapshot _activeSeasonFromSnapshot(GardenSnapshot snapshot) {
+    if (snapshot.seasons.isEmpty) {
+      final startedAt = gardenSeasonStartFor(DateTime.now());
+      return _seasonFromSnapshot(
+        snapshot: snapshot,
+        id: gardenSeasonIdFor(startedAt),
+        label: gardenSeasonLabelFor(startedAt),
+        startedAt: startedAt,
+      );
+    }
+
+    final fallback = snapshot.seasons.first;
+    final active = snapshot.seasons.firstWhere(
+      (season) => season.id == snapshot.activeSeasonId,
+      orElse: () => fallback,
+    );
+    return active;
+  }
+
+  GardenSeasonSnapshot _seasonFromSnapshot({
+    required GardenSnapshot snapshot,
+    required String id,
+    required String label,
+    required DateTime startedAt,
+  }) =>
+      GardenSeasonSnapshot(
+        id: id,
+        label: label,
+        startedAt: startedAt,
+        nextRecordId: snapshot.nextRecordId,
+        bedCropIds: snapshot.bedCropIds,
+        records: snapshot.records,
+        beds: snapshot.beds,
+        plants: snapshot.plants,
+        seedlings: snapshot.seedlings,
+        pestSightings: snapshot.pestSightings,
+        plotWidthMeters: snapshot.plotWidthMeters,
+        plotLengthMeters: snapshot.plotLengthMeters,
+      );
+
+  List<GardenSeasonSnapshot> _mergeSeasonList(
+    List<GardenSeasonSnapshot> source,
+    GardenSeasonSnapshot active,
+  ) {
+    final seasons = [...source];
+    final index = seasons.indexWhere((season) => season.id == active.id);
+    if (index == -1) {
+      seasons.add(active);
+    } else {
+      seasons[index] = active;
+    }
+    seasons.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+    return List.unmodifiable(seasons);
   }
 
   Map<int, List<VegetableDefinition>> _restoreBedCrops(
@@ -218,15 +309,80 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
       .where((bed) => bed.rect.width > 0 && bed.rect.height > 0)
       .toList(growable: false);
 
-  int _nextRecordId(GardenSnapshot snapshot, List<SprayRecord> records) {
-    final nextFromRecords = records.fold(
-      1,
-      (next, record) => record.id >= next ? record.id + 1 : next,
-    );
-    return snapshot.nextRecordId > nextFromRecords
-        ? snapshot.nextRecordId
-        : nextFromRecords;
+  int _nextRecordIdFromRecords(List<SprayRecord> records) => records.fold(
+        1,
+        (next, record) => record.id >= next ? record.id + 1 : next,
+      );
+
+  int _nextSeedlingBatchId(List<SeedlingBatch> batches) {
+    var next = 1;
+    for (final batch in batches) {
+      if (batch.id >= next) next = batch.id + 1;
+    }
+    return next;
   }
+
+  SeedlingBatch _seedlingFromStorage(StoredSeedlingBatch batch) =>
+      SeedlingBatch(
+        id: batch.id,
+        cropId: batch.cropId,
+        cropName: batch.cropName,
+        varietyName: batch.varietyName,
+        quantityStarted: batch.quantityStarted,
+        quantityAlive: batch.quantityAlive,
+        dateStarted: batch.dateStarted,
+        location: batch.location,
+        method: batch.method,
+        status: _seedlingStatusFromStorage(batch.status),
+        expectedGerminationDaysMin: batch.expectedGerminationDaysMin,
+        expectedGerminationDaysMax: batch.expectedGerminationDaysMax,
+        targetPlantOutDate: batch.targetPlantOutDate,
+        plantedOutBed: batch.plantedOutBed,
+        plantedOutDate: batch.plantedOutDate,
+        notes: batch.notes,
+      );
+
+  SeedlingStatus _seedlingStatusFromStorage(String value) =>
+      SeedlingStatus.values.firstWhere(
+        (status) => status.name == value,
+        orElse: () => SeedlingStatus.started,
+      );
+
+  int _nextPestSightingId(List<PestSighting> sightings) {
+    var next = 1;
+    for (final sighting in sightings) {
+      if (sighting.id >= next) next = sighting.id + 1;
+    }
+    return next;
+  }
+
+  PestSighting _pestSightingFromStorage(StoredPestSighting sighting) =>
+      PestSighting(
+        id: sighting.id,
+        bed: sighting.bed,
+        cropName: sighting.cropName,
+        issueName: sighting.issueName,
+        severity: _pestSeverityFromStorage(sighting.severity),
+        actionTaken: sighting.actionTaken,
+        date: sighting.date,
+        recheckDate: sighting.recheckDate,
+        notes: sighting.notes,
+        status: _pestSightingStatusFromStorage(sighting.status),
+        followUpDate: sighting.followUpDate,
+        followUpResult: sighting.followUpResult,
+      );
+
+  PestSeverity _pestSeverityFromStorage(String value) =>
+      PestSeverity.values.firstWhere(
+        (severity) => severity.name == value,
+        orElse: () => PestSeverity.medium,
+      );
+
+  PestSightingStatus _pestSightingStatusFromStorage(String value) =>
+      PestSightingStatus.values.firstWhere(
+        (status) => status.name == value,
+        orElse: () => PestSightingStatus.active,
+      );
 
   SprayRecord _recordFromStorage(StoredSprayRecord record) => SprayRecord(
         id: record.id,
@@ -489,6 +645,78 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
     unawaited(_saveGarden());
   }
 
+  Future<void> hardResetBeds() async {
+    final recordsToCancel = [...records];
+    for (final record in recordsToCancel) {
+      await HarvestReminderService.instance.cancel(record.id);
+    }
+    if (!mounted) return;
+    setState(() {
+      gardenPlot = defaultGardenPlot;
+      gardenLayout = [...defaultGardenBeds];
+      bedCrops.clear();
+      bedPlants.clear();
+      records = [];
+      seedlingBatches = [];
+      pestSightings = [];
+      nextRecordId = 1;
+      nextPlantId = 1;
+      nextSeedlingBatchId = 1;
+      nextPestSightingId = 1;
+      selectedBed = gardenLayout.first.number;
+      highlightedRecordId = null;
+      message = '${gardenSeasonLabelFor(activeSeasonStart)} reset';
+    });
+    await _saveGarden();
+  }
+
+  void switchGardenSeason(String seasonId) {
+    final seasons = _mergeSeasonList(gardenSeasons, _currentSeasonFromState());
+    final season = seasons.firstWhere(
+      (item) => item.id == seasonId,
+      orElse: () => seasons.first,
+    );
+    _applySeasonSnapshot(
+      season,
+      seasons,
+      'Opened ${_seasonLabel(season)}',
+    );
+    unawaited(_saveGarden());
+  }
+
+  void createNextGardenSeason() {
+    final seasons = _mergeSeasonList(gardenSeasons, _currentSeasonFromState());
+    var nextStart = nextGardenSeasonStart(activeSeasonStart);
+    while (seasons.any((season) => season.id == gardenSeasonIdFor(nextStart))) {
+      nextStart = nextGardenSeasonStart(nextStart);
+    }
+    final nextSeason = GardenSeasonSnapshot(
+      id: gardenSeasonIdFor(nextStart),
+      label: gardenSeasonLabelFor(nextStart),
+      startedAt: nextStart,
+      nextRecordId: 1,
+      bedCropIds: const {},
+      records: const [],
+      seedlings: const [],
+      pestSightings: const [],
+      beds: gardenLayout.map(_bedToStorage).toList(growable: false),
+      plants: const [],
+      plotWidthMeters: gardenPlot.widthMeters,
+      plotLengthMeters: gardenPlot.lengthMeters,
+    );
+    _applySeasonSnapshot(
+      nextSeason,
+      _mergeSeasonList(seasons, nextSeason),
+      'Started ${nextSeason.label}',
+    );
+    unawaited(_saveGarden());
+  }
+
+  String _seasonLabel(GardenSeasonSnapshot season) =>
+      season.label.trim().isEmpty
+          ? gardenSeasonLabelFor(season.startedAt)
+          : season.label.trim();
+
   GardenBed _bedByNumber(int number) => gardenLayout.firstWhere(
         (bed) => bed.number == number,
         orElse: () => gardenLayout.first,
@@ -511,6 +739,160 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
     unawaited(_saveGarden());
   }
 
+  void addSeedlingBatch({
+    required VegetableDefinition crop,
+    required String varietyName,
+    required int quantityStarted,
+    required DateTime dateStarted,
+    required String location,
+    required String method,
+    required String notes,
+  }) {
+    final germination = seedlingGerminationWindowFor(crop);
+    final batch = SeedlingBatch(
+      id: nextSeedlingBatchId,
+      cropId: crop.id,
+      cropName: crop.name,
+      varietyName: varietyName,
+      quantityStarted: quantityStarted,
+      quantityAlive: quantityStarted,
+      dateStarted: dateStarted,
+      location: location,
+      method: method,
+      status: SeedlingStatus.started,
+      expectedGerminationDaysMin: germination.min,
+      expectedGerminationDaysMax: germination.max,
+      targetPlantOutDate: seedlingTargetPlantOutDate(dateStarted, crop),
+      notes: notes.trim(),
+    );
+    setState(() {
+      nextSeedlingBatchId++;
+      seedlingBatches = [batch, ...seedlingBatches];
+      message = '${crop.name} seedlings added';
+      tab = 2;
+    });
+    unawaited(_saveGarden());
+  }
+
+  void updateSeedlingStatus(int id, SeedlingStatus status) {
+    setState(() {
+      seedlingBatches = [
+        for (final batch in seedlingBatches)
+          if (batch.id == id) batch.copyWith(status: status) else batch,
+      ];
+      message = 'Seedling status updated';
+    });
+    unawaited(_saveGarden());
+  }
+
+  void plantOutSeedlingBatch(int id, int bed) {
+    SeedlingBatch? batch;
+    for (final item in seedlingBatches) {
+      if (item.id == id) {
+        batch = item;
+        break;
+      }
+    }
+    if (batch == null) return;
+    final targetBatch = batch;
+    final crop = vegetableLibrary.firstWhere(
+      (item) => item.id == targetBatch.cropId,
+      orElse: () => vegetableLibrary.first,
+    );
+    final nextCrops = [...bedCrops[bed] ?? <VegetableDefinition>[]];
+    if (!nextCrops.any((item) => item.id == crop.id)) nextCrops.add(crop);
+    setState(() {
+      bedCrops[bed] = nextCrops;
+      seedlingBatches = [
+        for (final item in seedlingBatches)
+          if (item.id == id)
+            item.copyWith(
+              status: SeedlingStatus.plantedOut,
+              plantedOutBed: bed,
+              plantedOutDate: DateTime.now(),
+            )
+          else
+            item,
+      ];
+      selectedBed = bed;
+      message = '${targetBatch.cropName} planted into Bed $bed';
+      tab = 1;
+    });
+    unawaited(_saveGarden());
+  }
+
+  void savePestSighting({
+    required int bed,
+    required String cropName,
+    required String issueName,
+    required PestSeverity severity,
+    required String actionTaken,
+    required DateTime recheckDate,
+    required String notes,
+  }) {
+    final sighting = PestSighting(
+      id: nextPestSightingId,
+      bed: bed,
+      cropName: cropName.trim().isEmpty ? 'Whole bed' : cropName.trim(),
+      issueName: issueName.trim().isEmpty ? 'Unknown issue' : issueName.trim(),
+      severity: severity,
+      actionTaken:
+          actionTaken.trim().isEmpty ? 'Observed only' : actionTaken.trim(),
+      date: DateTime.now(),
+      recheckDate: recheckDate,
+      notes: notes.trim(),
+    );
+    setState(() {
+      nextPestSightingId++;
+      pestSightings = [sighting, ...pestSightings];
+      selectedBed = bed;
+      message = 'Pest sighting saved';
+      tab = 0;
+    });
+    unawaited(_saveGarden());
+  }
+
+  void updatePestSightingFollowUp({
+    required int id,
+    required String result,
+  }) {
+    final now = DateTime.now();
+    final status = switch (result) {
+      'Pest gone' => PestSightingStatus.resolved,
+      'Less pest pressure' => PestSightingStatus.watching,
+      'Same as before' => PestSightingStatus.active,
+      'Worse' => PestSightingStatus.worse,
+      'Crop damaged' => PestSightingStatus.worse,
+      _ => PestSightingStatus.active,
+    };
+    final nextRecheckDate = switch (result) {
+      'Pest gone' => now,
+      'Less pest pressure' => now.add(const Duration(days: 3)),
+      'Same as before' => now.add(const Duration(days: 2)),
+      'Worse' => now.add(const Duration(days: 1)),
+      'Crop damaged' => now.add(const Duration(days: 1)),
+      _ => now.add(const Duration(days: 2)),
+    };
+    setState(() {
+      pestSightings = [
+        for (final sighting in pestSightings)
+          if (sighting.id == id)
+            sighting.copyWith(
+              status: status,
+              followUpDate: now,
+              followUpResult: result,
+              recheckDate: nextRecheckDate,
+            )
+          else
+            sighting,
+      ];
+      message = status == PestSightingStatus.resolved
+          ? 'Pest sighting marked resolved'
+          : 'Pest follow-up saved';
+    });
+    unawaited(_saveGarden());
+  }
+
   void saveSpray({
     required Set<int> beds,
     required Set<String> crops,
@@ -521,7 +903,70 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
     required String notes,
     required int days,
   }) {
-    if (beds.isEmpty) return;
+    if (beds.isEmpty) {
+      setState(() {
+        message = 'Select at least one bed before saving a spray record';
+      });
+      return;
+    }
+    _addSprayRecord(
+      beds: beds,
+      crops: crops,
+      cropProfiles: cropProfiles,
+      targetId: targetId,
+      product: product,
+      reason: reason,
+      notes: notes,
+      days: days,
+      nextTab: 4,
+      nextMessage: 'Spray record saved and opened',
+    );
+  }
+
+  void saveCalendarAction({
+    required PreventativeCalendarItem item,
+    required SprayProduct product,
+    required List<PreventativeCalendarItem> coveredItems,
+  }) {
+    final covered = coveredItems.isEmpty ? [item] : coveredItems;
+    final crops = covered.map((entry) => entry.crop.name).toSet();
+    final targets = covered
+        .map((entry) => protectionTargetLabel(entry.target))
+        .toSet()
+        .join(', ');
+    final issues = covered
+        .expand((entry) => entry.issues)
+        .where((issue) => issue.trim().isNotEmpty)
+        .take(4)
+        .join(', ');
+    _addSprayRecord(
+      beds: {item.bed.number},
+      crops: crops,
+      cropProfiles: const {},
+      targetId: _targetId(item.target),
+      product: product,
+      reason: issues.isEmpty ? 'Calendar ${item.title}' : issues,
+      notes:
+          'Logged from calendar. Marked ${covered.length} ${covered.length == 1 ? 'action' : 'actions'} done for $targets. Next checks recalculate automatically.',
+      days: product.withholdingDays,
+      nextTab: 5,
+      nextMessage:
+          '${product.name} logged for ${item.bed.label}; next countdown updated',
+    );
+  }
+
+  void _addSprayRecord({
+    required Set<int> beds,
+    required Set<String> crops,
+    required Map<String, OpenFarmCrop> cropProfiles,
+    required String targetId,
+    required SprayProduct product,
+    required String reason,
+    required String notes,
+    required int days,
+    required int nextTab,
+    required String nextMessage,
+  }) {
     final sortedBeds = beds.toList()..sort();
     final sortedCrops = crops.toList()..sort();
     final record = SprayRecord(
@@ -539,10 +984,11 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
     );
     setState(() {
       nextRecordId++;
-      records.insert(0, record);
+      records = [record, ...records];
       selectedBed = sortedBeds.first;
-      message = 'Spray record saved';
-      tab = 0;
+      highlightedRecordId = record.id;
+      message = nextMessage;
+      tab = nextTab;
     });
     unawaited(_saveGarden());
     unawaited(_scheduleHarvestReminder(record));
@@ -588,13 +1034,38 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
     }
   }
 
-  GardenSnapshot _snapshotFromState() => GardenSnapshot(
+  GardenSnapshot _snapshotFromState() {
+    final current = _currentSeasonFromState();
+    final seasons = _mergeSeasonList(gardenSeasons, current);
+    return GardenSnapshot(
+      activeSeasonId: current.id,
+      seasons: seasons,
+      nextRecordId: current.nextRecordId,
+      bedCropIds: current.bedCropIds,
+      records: current.records,
+      beds: current.beds,
+      plants: current.plants,
+      seedlings: current.seedlings,
+      pestSightings: current.pestSightings,
+      plotWidthMeters: current.plotWidthMeters,
+      plotLengthMeters: current.plotLengthMeters,
+    );
+  }
+
+  GardenSeasonSnapshot _currentSeasonFromState() => GardenSeasonSnapshot(
+        id: activeSeasonId,
+        label: gardenSeasonLabelFor(activeSeasonStart),
+        startedAt: activeSeasonStart,
         nextRecordId: nextRecordId,
         bedCropIds: {
           for (final entry in bedCrops.entries)
             entry.key: entry.value.map((crop) => crop.id).toList(),
         },
         records: records.map(_recordToStorage).toList(growable: false),
+        seedlings:
+            seedlingBatches.map(_seedlingToStorage).toList(growable: false),
+        pestSightings:
+            pestSightings.map(_pestSightingToStorage).toList(growable: false),
         beds: gardenLayout.map(_bedToStorage).toList(growable: false),
         plants: bedPlants.values
             .expand((plants) => plants)
@@ -604,34 +1075,56 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
         plotLengthMeters: gardenPlot.lengthMeters,
       );
 
-  Future<void> copyGardenBackup() async {
+  Future<void> saveGardenBackupFile() async {
     try {
-      await Clipboard.setData(
-        ClipboardData(text: encodeGardenSnapshot(_snapshotFromState())),
+      final saved = await GardenBackupFileService.instance.saveBackupFile(
+        fileName: _gardenBackupFileName(),
+        content: encodeGardenBackupFile(_snapshotFromState()),
       );
       if (!mounted) return;
       setState(() {
-        message = 'Garden backup copied';
+        message = saved ? 'Garden backup file saved' : 'Backup save cancelled';
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        message = 'Garden backup could not be copied';
+        message = 'Garden backup file could not be saved';
       });
     }
   }
 
-  Future<void> restoreGardenBackup(String raw) async {
-    final snapshot = decodeGardenSnapshot(raw.trim());
-    if (snapshot == null) {
+  String _gardenBackupFileName() {
+    final now = DateTime.now();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return 'spray-tracker-${now.year}-${two(now.month)}-${two(now.day)}-'
+        '${two(now.hour)}${two(now.minute)}.$gardenBackupFileExtension';
+  }
+
+  Future<void> restoreGardenBackupFile() async {
+    try {
+      final raw = await GardenBackupFileService.instance.loadBackupFile();
+      if (!mounted) return;
+      if (raw == null || raw.trim().isEmpty) {
+        setState(() {
+          message = 'Backup load cancelled';
+        });
+        return;
+      }
+      final snapshot = decodeGardenBackupFile(raw);
+      if (snapshot == null) {
+        setState(() {
+          message = 'Backup file was not valid';
+        });
+        return;
+      }
+      _applyGardenSnapshot(snapshot, 'Garden backup file loaded');
+      await _saveGarden();
+    } catch (_) {
       if (!mounted) return;
       setState(() {
-        message = 'Backup text was not valid';
+        message = 'Garden backup file could not be loaded';
       });
-      return;
     }
-    _applyGardenSnapshot(snapshot, 'Garden backup loaded');
-    await _saveGarden();
   }
 
   Future<void> reloadGardenBackup() async {
@@ -664,6 +1157,42 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
         notes: record.notes,
         date: record.date,
         days: record.days,
+      );
+
+  StoredSeedlingBatch _seedlingToStorage(SeedlingBatch batch) =>
+      StoredSeedlingBatch(
+        id: batch.id,
+        cropId: batch.cropId,
+        cropName: batch.cropName,
+        varietyName: batch.varietyName,
+        quantityStarted: batch.quantityStarted,
+        quantityAlive: batch.quantityAlive,
+        dateStarted: batch.dateStarted,
+        location: batch.location,
+        method: batch.method,
+        status: batch.status.name,
+        expectedGerminationDaysMin: batch.expectedGerminationDaysMin,
+        expectedGerminationDaysMax: batch.expectedGerminationDaysMax,
+        targetPlantOutDate: batch.targetPlantOutDate,
+        plantedOutBed: batch.plantedOutBed,
+        plantedOutDate: batch.plantedOutDate,
+        notes: batch.notes,
+      );
+
+  StoredPestSighting _pestSightingToStorage(PestSighting sighting) =>
+      StoredPestSighting(
+        id: sighting.id,
+        bed: sighting.bed,
+        cropName: sighting.cropName,
+        issueName: sighting.issueName,
+        severity: sighting.severity.name,
+        actionTaken: sighting.actionTaken,
+        date: sighting.date,
+        recheckDate: sighting.recheckDate,
+        notes: sighting.notes,
+        status: sighting.status.name,
+        followUpDate: sighting.followUpDate,
+        followUpResult: sighting.followUpResult,
       );
 
   StoredGardenBed _bedToStorage(GardenBed bed) => StoredGardenBed(
@@ -700,7 +1229,7 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
     setState(() {
       highlightedRecordId = record.id;
       selectedBed = record.beds.isEmpty ? selectedBed : record.beds.first;
-      tab = 3;
+      tab = 4;
       message = 'Opened spray record ${record.id}';
     });
   }
@@ -712,7 +1241,7 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
     setState(() {
       protectionView = view;
       protectionSearch = search;
-      tab = 4;
+      tab = 5;
       message = view == ProtectionView.pests
           ? 'Opened pest pressure profiles'
           : 'Opened protection profiles';
@@ -726,6 +1255,9 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
       bedCrops.values.where((items) => items.isNotEmpty).length;
   int get cropPlacements =>
       bedCrops.values.fold(0, (sum, list) => sum + list.length);
+  String get activeSeasonLabel => gardenSeasonLabelFor(activeSeasonStart);
+  List<GardenSeasonSnapshot> get seasonOptions =>
+      _mergeSeasonList(gardenSeasons, _currentSeasonFromState());
   String get gardenMessage =>
       message == 'Saved garden could not be loaded' ? message : '';
 
@@ -740,11 +1272,12 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
         gardenBeds: gardenLayout,
         bedCrops: bedCrops,
         records: records,
+        pestSightings: pestSightings,
         products: products,
         message: message,
         sprayConditions: sprayConditions,
         gardenRisks: gardenRisks,
-        onPlanSpray: () => setState(() => tab = 2),
+        onPlanSpray: () => setState(() => tab = 3),
         onOpenProducts: () => openProtectionProfiles(
           view: ProtectionView.products,
         ),
@@ -753,12 +1286,16 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
         onOpenPestProfiles: () => openProtectionProfiles(
           view: ProtectionView.pests,
         ),
-        onCopyBackup: copyGardenBackup,
-        onRestoreBackup: restoreGardenBackup,
+        onPestFollowUp: updatePestSightingFollowUp,
+        onSaveBackup: saveGardenBackupFile,
+        onRestoreBackup: restoreGardenBackupFile,
         onReloadBackup: reloadGardenBackup,
       ),
       GardenScreen(
         selectedBed: selectedBed,
+        activeSeasonId: activeSeasonId,
+        activeSeasonLabel: activeSeasonLabel,
+        seasons: seasonOptions,
         plot: gardenPlot,
         gardenBeds: gardenLayout,
         bedCrops: bedCrops,
@@ -791,7 +1328,18 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
         onSizePlot: sizeGardenPlot,
         onRemoveBed: removeGardenBed,
         onResetLayout: resetGardenLayout,
-        onStartSpray: () => setState(() => tab = 2),
+        onHardResetBeds: () => unawaited(hardResetBeds()),
+        onSwitchSeason: switchGardenSeason,
+        onAddSeason: createNextGardenSeason,
+        onStartSpray: () => setState(() => tab = 3),
+      ),
+      SeedlingsScreen(
+        batches: seedlingBatches,
+        gardenBeds: gardenLayout,
+        message: message,
+        onAddBatch: addSeedlingBatch,
+        onUpdateStatus: updateSeedlingStatus,
+        onPlantOut: plantOutSeedlingBatch,
       ),
       SprayLogScreen(
         key: ValueKey('${products.length}-${records.length}'),
@@ -800,10 +1348,12 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
         gardenBeds: gardenLayout,
         bedCrops: bedCrops,
         records: records,
+        pestSightings: pestSightings,
         products: products,
         productsLoading: productsLoading,
         sprayConditions: sprayConditions,
         onSave: saveSpray,
+        onSavePestSighting: savePestSighting,
       ),
       RecordsScreen(
         records: records,
@@ -819,7 +1369,7 @@ class _SprayTrackerHomeState extends State<SprayTrackerHome> {
         loading: productsLoading,
         message: message,
         gardenRisks: gardenRisks,
-        onPlanSpray: () => setState(() => tab = 2),
+        onPlanSpray: () => setState(() => tab = 3),
         initialView: protectionView,
         initialSearch: protectionSearch,
       ),

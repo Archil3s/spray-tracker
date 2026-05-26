@@ -90,6 +90,82 @@ class SprayRecord {
   bool onHoldAt(DateTime dateTime) => safeDate.isAfter(dateTime);
 }
 
+enum PestSightingStatus { active, watching, resolved, worse }
+
+enum PestSeverity { low, medium, high }
+
+String pestSightingStatusLabel(PestSightingStatus status) => switch (status) {
+      PestSightingStatus.active => 'Active',
+      PestSightingStatus.watching => 'Watching',
+      PestSightingStatus.resolved => 'Resolved',
+      PestSightingStatus.worse => 'Worse',
+    };
+
+String pestSeverityLabel(PestSeverity severity) => switch (severity) {
+      PestSeverity.low => 'Low',
+      PestSeverity.medium => 'Medium',
+      PestSeverity.high => 'High',
+    };
+
+bool pestSightingNeedsRecheck(PestSighting sighting, {DateTime? now}) {
+  if (sighting.status == PestSightingStatus.resolved) return false;
+  final today = now ?? DateTime.now();
+  return !sighting.recheckDate.isAfter(today);
+}
+
+class PestSighting {
+  const PestSighting({
+    required this.id,
+    required this.bed,
+    required this.cropName,
+    required this.issueName,
+    required this.severity,
+    required this.actionTaken,
+    required this.date,
+    required this.recheckDate,
+    required this.notes,
+    this.status = PestSightingStatus.active,
+    this.followUpDate,
+    this.followUpResult,
+  });
+
+  final int id;
+  final int bed;
+  final String cropName;
+  final String issueName;
+  final PestSeverity severity;
+  final String actionTaken;
+  final DateTime date;
+  final DateTime recheckDate;
+  final String notes;
+  final PestSightingStatus status;
+  final DateTime? followUpDate;
+  final String? followUpResult;
+
+  bool get recheckDue => pestSightingNeedsRecheck(this);
+
+  PestSighting copyWith({
+    PestSightingStatus? status,
+    DateTime? recheckDate,
+    DateTime? followUpDate,
+    String? followUpResult,
+  }) =>
+      PestSighting(
+        id: id,
+        bed: bed,
+        cropName: cropName,
+        issueName: issueName,
+        severity: severity,
+        actionTaken: actionTaken,
+        date: date,
+        recheckDate: recheckDate ?? this.recheckDate,
+        notes: notes,
+        status: status ?? this.status,
+        followUpDate: followUpDate ?? this.followUpDate,
+        followUpResult: followUpResult ?? this.followUpResult,
+      );
+}
+
 enum BedSprayState { neverSprayed, clear, hold }
 
 class BedSpraySummary {

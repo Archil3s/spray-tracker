@@ -10,6 +10,7 @@ class BottomNav extends StatelessWidget {
     final items = const [
       NavSpec('Home', CupertinoIcons.home),
       NavSpec('Garden', CupertinoIcons.square_grid_2x2),
+      NavSpec('Seedlings', CupertinoIcons.leaf_arrow_circlepath),
       NavSpec('Spray', CupertinoIcons.drop),
       NavSpec('Records', CupertinoIcons.list_bullet),
       NavSpec('Protect', CupertinoIcons.shield),
@@ -31,36 +32,40 @@ class BottomNav extends StatelessWidget {
               onTap: () => onTap(index),
               scale: .94,
               semanticsLabel: items[index].label,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    width: 40,
-                    height: 34,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: selected ? C.forest : CupertinoColors.transparent,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Icon(
-                      items[index].icon,
-                      size: 18,
-                      color: selected ? CupertinoColors.white : C.muted,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  FittedBox(
-                    child: Text(
-                      items[index].label,
-                      style: TextStyle(
-                        color: selected ? C.forest : C.muted,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w800,
+              child: SizedBox(
+                height: 62,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      width: 40,
+                      height: 34,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color:
+                            selected ? C.forest : CupertinoColors.transparent,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Icon(
+                        items[index].icon,
+                        size: 18,
+                        color: selected ? CupertinoColors.white : C.muted,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 3),
+                    FittedBox(
+                      child: Text(
+                        items[index].label,
+                        style: TextStyle(
+                          color: selected ? C.forest : C.muted,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );

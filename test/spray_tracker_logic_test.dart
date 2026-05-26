@@ -288,6 +288,60 @@ void main() {
           isTrue);
     });
 
+    test('finds all bed calendar actions covered by a broad product', () {
+      const broadProduct = SprayProduct(
+        id: 'broad',
+        name: 'Broad garden spray',
+        brand: 'Test',
+        type: 'Fungicide insecticide plant health',
+        activeIngredient: 'Test active',
+        withholdingDays: 1,
+        withholdingNote: 'Test only',
+        reEntryHours: 1,
+        category: 'organic',
+        commonUses: ['aphids', 'mildew', 'plant health'],
+        suitableCrops: ['vegetables'],
+        reSprayIntervalDays: 7,
+        acvmRegistrationNumber: '',
+        source: 'Test',
+        notes: '',
+      );
+      final items = generatePreventativeCalendar(
+        beds: const [
+          GardenBed(1, Rect.fromLTWH(.10, .10, .20, .20)),
+          GardenBed(2, Rect.fromLTWH(.40, .10, .20, .20)),
+        ],
+        bedCrops: {
+          1: [_crop('tomato'), _crop('lettuce')],
+          2: [_crop('carrot')],
+        },
+        records: const [],
+        products: const [broadProduct],
+        now: DateTime(2026, 5, 22),
+      );
+      final source = items.firstWhere(
+        (item) =>
+            item.bed.number == 1 &&
+            item.crop.id == 'tomato' &&
+            item.target == ProtectionTarget.pest,
+      );
+
+      final covered = calendarItemsCoveredByProduct(
+        source: source,
+        items: items,
+        product: broadProduct,
+      );
+
+      expect(covered.map((item) => item.bed.number).toSet(), {1});
+      expect(
+          covered.map((item) => item.crop.id).toSet(), {'tomato', 'lettuce'});
+      expect(covered.map((item) => item.target).toSet(), {
+        ProtectionTarget.pest,
+        ProtectionTarget.fungus,
+        ProtectionTarget.feed,
+      });
+    });
+
     test('blocks spray calendar items while bed is on withholding hold', () {
       final items = generatePreventativeCalendar(
         beds: const [GardenBed(1, Rect.fromLTWH(.10, .10, .20, .20))],
@@ -503,6 +557,7 @@ void main() {
     test('round-trips local garden data', () {
       final snapshot = GardenSnapshot(
         nextRecordId: 9,
+        activeSeasonId: 'autumn-2026',
         bedCropIds: const {
           4: ['tomato', 'chilli'],
           5: ['onion'],
@@ -542,6 +597,20 @@ void main() {
             y: .62,
           ),
         ],
+        seasons: [
+          GardenSeasonSnapshot(
+            id: 'autumn-2026',
+            label: 'Autumn 2026',
+            startedAt: DateTime(2026, 3),
+            nextRecordId: 2,
+            bedCropIds: const {
+              1: ['lettuce'],
+            },
+            records: const [],
+            beds: const [],
+            plants: const [],
+          ),
+        ],
         plotWidthMeters: 10.5,
         plotLengthMeters: 14,
       );
@@ -553,6 +622,9 @@ void main() {
       expect(restored.records.single.product, 'Copper');
       expect(restored.records.single.beds, [4, 5]);
       expect(restored.records.single.date, DateTime(2026, 5, 22, 18, 30));
+      expect(restored.activeSeasonId, 'autumn-2026');
+      expect(restored.seasons.single.label, 'Autumn 2026');
+      expect(restored.seasons.single.bedCropIds[1], ['lettuce']);
       expect(restored.beds.single.name, 'Herb strip');
       expect(restored.beds.single.left, .14);
       expect(restored.beds.single.widthMeters, 1.25);
@@ -563,7 +635,7 @@ void main() {
       expect(restored.plotLengthMeters, 14);
     });
 
-    test('encodes and decodes portable backup data', () {
+    test('encodes and decodes portable backup file data', () {
       final snapshot = GardenSnapshot(
         nextRecordId: 3,
         bedCropIds: const {
@@ -585,13 +657,23 @@ void main() {
         ],
       );
 
-      final backup = encodeGardenSnapshot(snapshot);
-      final restored = decodeGardenSnapshot(backup);
+      final backup = encodeGardenBackupFile(snapshot);
+      final restored = decodeGardenBackupFile(backup);
 
+      expect(backup, startsWith('SPRAY_TRACKER_GARDEN_BACKUP_V1'));
       expect(restored?.nextRecordId, 3);
       expect(restored?.bedCropIds[1], ['tomato']);
       expect(restored?.records.single.reason, 'Aphids');
-      expect(decodeGardenSnapshot('not json'), isNull);
+      expect(decodeGardenBackupFile(encodeGardenSnapshot(snapshot)), isNotNull);
+      expect(decodeGardenBackupFile('not a backup'), isNull);
+    });
+
+    test('uses southern hemisphere season labels for Blenheim', () {
+      expect(gardenSeasonIdFor(DateTime(2026, 5, 26)), 'autumn-2026');
+      expect(gardenSeasonLabelFor(DateTime(2026, 5, 26)), 'Autumn 2026');
+      expect(gardenSeasonStartFor(DateTime(2026, 5, 26)), DateTime(2026, 3));
+      expect(nextGardenSeasonStart(DateTime(2026, 5, 26)), DateTime(2026, 6));
+      expect(gardenSeasonLabelFor(DateTime(2026, 1, 10)), 'Summer 2025');
     });
   });
 

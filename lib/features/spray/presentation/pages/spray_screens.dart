@@ -7,10 +7,12 @@ class SprayLogScreen extends StatefulWidget {
     required this.gardenBeds,
     required this.bedCrops,
     required this.records,
+    required this.pestSightings,
     required this.products,
     required this.productsLoading,
     required this.sprayConditions,
     required this.onSave,
+    required this.onSavePestSighting,
     super.key,
   });
   final Set<int> initialBeds;
@@ -18,6 +20,7 @@ class SprayLogScreen extends StatefulWidget {
   final List<GardenBed> gardenBeds;
   final Map<int, List<VegetableDefinition>> bedCrops;
   final List<SprayRecord> records;
+  final List<PestSighting> pestSightings;
   final List<SprayProduct> products;
   final bool productsLoading;
   final Future<SprayConditionSummary> sprayConditions;
@@ -31,6 +34,15 @@ class SprayLogScreen extends StatefulWidget {
     required String notes,
     required int days,
   }) onSave;
+  final void Function({
+    required int bed,
+    required String cropName,
+    required String issueName,
+    required PestSeverity severity,
+    required String actionTaken,
+    required DateTime recheckDate,
+    required String notes,
+  }) onSavePestSighting;
 
   @override
   State<SprayLogScreen> createState() => _SprayLogScreenState();
@@ -41,9 +53,10 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
   final Set<String> manualCrops = {};
   final Map<String, OpenFarmCrop> cropProfiles = {};
   String targetId = 'pest';
+  String? selectedIssue;
+  String selectedActionTaken = 'Sprayed selected product';
   SprayProduct? selectedProduct;
   int days = 0;
-  final reason = TextEditingController();
   final notes = TextEditingController();
 
   @override
@@ -72,7 +85,6 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
 
   @override
   void dispose() {
-    reason.dispose();
     notes.dispose();
     super.dispose();
   }
@@ -128,9 +140,20 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
       targetId: targetId,
       products: widget.products,
     );
-    final issue = reason.text.trim().isEmpty && issueSuggestions.isNotEmpty
-        ? issueSuggestions.first.issue
-        : reason.text.trim();
+    final issueOptions = _sprayIssueOptions(
+      targetId: targetId,
+      crops: cropDefinitions,
+      suggestions: issueSuggestions,
+    );
+    final issue = selectedIssue != null && issueOptions.contains(selectedIssue)
+        ? selectedIssue!
+        : issueOptions.isNotEmpty
+            ? issueOptions.first
+            : '';
+    final actionOptions = _sprayActionOptions(targetId);
+    final actionTaken = actionOptions.contains(selectedActionTaken)
+        ? selectedActionTaken
+        : actionOptions.first;
     final rankedProducts = widget.products.isEmpty
         ? const <SprayProduct>[]
         : rankedSprayProductsForSpray(
@@ -144,12 +167,24 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
       ...rankedProducts,
       ...widget.products.where((product) => !rankedIds.contains(product.id)),
     ];
+    final saveBlockedReason = beds.isEmpty
+        ? 'Select at least one bed on the garden outline before saving.'
+        : product == null
+            ? 'Select a spray or feed product before saving.'
+            : '';
     return AppPage(
       title: 'Spray Log',
       subtitle:
           'Choose product, then withholding and re-entry notes fill automatically.',
       children: [
         SprayConditionBanner(sprayConditions: widget.sprayConditions),
+        const SizedBox(height: 18),
+        _PestSightingQuickForm(
+          gardenBeds: widget.gardenBeds,
+          bedCrops: widget.bedCrops,
+          pestSightings: widget.pestSightings,
+          onSave: widget.onSavePestSighting,
+        ),
         const SizedBox(height: 18),
         const SectionTitle('Beds sprayed'),
         const SizedBox(height: 8),
@@ -232,6 +267,8 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
           selected: targetId,
           onSelect: (id) => setState(() {
             targetId = id;
+            selectedIssue = null;
+            selectedActionTaken = _sprayActionOptions(id).first;
             if (widget.products.isNotEmpty) {
               _selectProduct(_bestProductForCurrentTarget());
             }
@@ -242,7 +279,9 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
           suggestions: issueSuggestions,
           onUse: (suggestion) => setState(() {
             targetId = suggestion.targetId;
-            reason.text = suggestion.issue;
+            selectedIssue = suggestion.issue;
+            selectedActionTaken =
+                _sprayActionOptions(suggestion.targetId).first;
             if (suggestion.product != null) {
               _selectProduct(suggestion.product!);
             } else if (widget.products.isNotEmpty) {
@@ -291,9 +330,30 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
           ),
         ],
         const SizedBox(height: 18),
-        Field(
-          controller: reason,
-          placeholder: 'Issue or reason, e.g. aphids on tomato tips',
+        _SprayDropdownCard(
+          title: 'Issue / reason',
+          value: issue.isEmpty ? 'Select issue' : issue,
+          icon: CupertinoIcons.exclamationmark_circle,
+          options: issueOptions,
+          emptyText:
+              'Select planted beds first. The app will build choices from the crops in those beds.',
+          onSelected: (value) {
+            setState(() {
+              selectedIssue = value;
+              if (widget.products.isNotEmpty) {
+                _selectProduct(_bestProductForCurrentTarget(issue: value));
+              }
+            });
+          },
+        ),
+        const SizedBox(height: 8),
+        _SprayDropdownCard(
+          title: 'Action taken',
+          value: actionTaken,
+          icon: CupertinoIcons.checkmark_circle,
+          options: actionOptions,
+          emptyText: 'No actions available.',
+          onSelected: (value) => setState(() => selectedActionTaken = value),
         ),
         const SizedBox(height: 8),
         Field(controller: notes, placeholder: 'Notes optional', maxLines: 3),
@@ -308,6 +368,10 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
           const SizedBox(height: 8),
           SprayProductHelperNotes(product: product),
         ],
+        if (saveBlockedReason.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          EmptyInline(saveBlockedReason),
+        ],
         const SizedBox(height: 18),
         PrimaryButton(
           label: 'Save spray record',
@@ -319,12 +383,481 @@ class _SprayLogScreenState extends State<SprayLogScreen> {
                     cropProfiles: cropProfiles,
                     targetId: targetId,
                     product: product,
-                    reason: reason.text,
-                    notes: notes.text,
+                    reason: issue,
+                    notes: _sprayNotesWithAction(
+                      actionTaken: actionTaken,
+                      notes: notes.text,
+                    ),
                     days: days,
                   ),
         ),
       ],
+    );
+  }
+}
+
+class _PestSightingQuickForm extends StatefulWidget {
+  const _PestSightingQuickForm({
+    required this.gardenBeds,
+    required this.bedCrops,
+    required this.pestSightings,
+    required this.onSave,
+  });
+
+  final List<GardenBed> gardenBeds;
+  final Map<int, List<VegetableDefinition>> bedCrops;
+  final List<PestSighting> pestSightings;
+  final void Function({
+    required int bed,
+    required String cropName,
+    required String issueName,
+    required PestSeverity severity,
+    required String actionTaken,
+    required DateTime recheckDate,
+    required String notes,
+  }) onSave;
+
+  @override
+  State<_PestSightingQuickForm> createState() => _PestSightingQuickFormState();
+}
+
+class _PestSightingQuickFormState extends State<_PestSightingQuickForm> {
+  int? selectedBed;
+  String? selectedCropName;
+  String? selectedIssueName;
+  PestSeverity severity = PestSeverity.medium;
+  String actionTaken = 'Observed only';
+  int recheckDays = 3;
+  final notes = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    selectedBed =
+        widget.gardenBeds.isEmpty ? null : widget.gardenBeds.first.number;
+  }
+
+  @override
+  void didUpdateWidget(covariant _PestSightingQuickForm oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (selectedBed != null &&
+        !widget.gardenBeds.any((bed) => bed.number == selectedBed)) {
+      selectedBed =
+          widget.gardenBeds.isEmpty ? null : widget.gardenBeds.first.number;
+      selectedCropName = null;
+      selectedIssueName = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    notes.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bedOptions = widget.gardenBeds.map((bed) => bed.label).toList();
+    final bed = selectedBed;
+    final cropOptions = _cropOptionsForBed(bed);
+    final cropName = cropOptions.contains(selectedCropName)
+        ? selectedCropName!
+        : cropOptions.first;
+    final issueOptions = _pestIssueOptions(bed, cropName);
+    final issueName = issueOptions.contains(selectedIssueName)
+        ? selectedIssueName!
+        : issueOptions.first;
+    final severityOptions =
+        PestSeverity.values.map(pestSeverityLabel).toList(growable: false);
+    final actionOptions = const [
+      'Observed only',
+      'Removed affected leaves',
+      'Hand removed pests',
+      'Hosed pests off',
+      'Set trap / barrier',
+      'Sprayed selected product',
+    ];
+    final recheckOptions = const ['Tomorrow', '2 days', '3 days', '1 week'];
+
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionTitle(
+            'Pest sighting log',
+            trailing: ProductTag(
+              label: '${widget.pestSightings.length}',
+              color: widget.pestSightings.isEmpty ? C.muted : C.red,
+              background: widget.pestSightings.isEmpty ? C.greySoft : C.redSoft,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Record what you saw before deciding whether to spray.',
+            style: TextStyle(
+              color: C.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SprayDropdownCard(
+            title: 'Bed',
+            value: bed == null ? 'No beds available' : _bedLabel(bed),
+            icon: CupertinoIcons.square_grid_2x2,
+            options: bedOptions,
+            emptyText: 'Add a garden bed first.',
+            onSelected: (value) => setState(() {
+              selectedBed = _bedNumberForLabel(value);
+              selectedCropName = null;
+              selectedIssueName = null;
+            }),
+          ),
+          const SizedBox(height: 8),
+          _SprayDropdownCard(
+            title: 'Crop',
+            value: cropName,
+            icon: CupertinoIcons.leaf_arrow_circlepath,
+            options: cropOptions,
+            emptyText: 'No crop choices available.',
+            onSelected: (value) => setState(() {
+              selectedCropName = value;
+              selectedIssueName = null;
+            }),
+          ),
+          const SizedBox(height: 8),
+          _SprayDropdownCard(
+            title: 'Issue',
+            value: issueName,
+            icon: CupertinoIcons.ant,
+            options: issueOptions,
+            emptyText: 'No issues available.',
+            onSelected: (value) => setState(() => selectedIssueName = value),
+          ),
+          const SizedBox(height: 8),
+          _SprayDropdownCard(
+            title: 'Severity',
+            value: pestSeverityLabel(severity),
+            icon: CupertinoIcons.chart_bar,
+            options: severityOptions,
+            emptyText: 'No severity choices available.',
+            onSelected: (value) => setState(() {
+              severity = PestSeverity.values.firstWhere(
+                (item) => pestSeverityLabel(item) == value,
+                orElse: () => PestSeverity.medium,
+              );
+            }),
+          ),
+          const SizedBox(height: 8),
+          _SprayDropdownCard(
+            title: 'Action taken',
+            value: actionTaken,
+            icon: CupertinoIcons.checkmark_circle,
+            options: actionOptions,
+            emptyText: 'No action choices available.',
+            onSelected: (value) => setState(() => actionTaken = value),
+          ),
+          const SizedBox(height: 8),
+          _SprayDropdownCard(
+            title: 'Recheck',
+            value: _recheckLabel(recheckDays),
+            icon: CupertinoIcons.time,
+            options: recheckOptions,
+            emptyText: 'No recheck choices available.',
+            onSelected: (value) => setState(() {
+              recheckDays = switch (value) {
+                'Tomorrow' => 1,
+                '2 days' => 2,
+                '1 week' => 7,
+                _ => 3,
+              };
+            }),
+          ),
+          const SizedBox(height: 8),
+          Field(controller: notes, placeholder: 'Notes optional', maxLines: 2),
+          const SizedBox(height: 12),
+          PrimaryButton(
+            label: 'Save pest sighting',
+            onPressed: bed == null
+                ? null
+                : () {
+                    widget.onSave(
+                      bed: bed,
+                      cropName: cropName,
+                      issueName: issueName,
+                      severity: severity,
+                      actionTaken: actionTaken,
+                      recheckDate: DateTime.now().add(
+                        Duration(days: recheckDays),
+                      ),
+                      notes: notes.text,
+                    );
+                    notes.clear();
+                  },
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<String> _cropOptionsForBed(int? bed) {
+    if (bed == null) return const ['Whole bed'];
+    final crops = widget.bedCrops[bed] ?? const <VegetableDefinition>[];
+    if (crops.isEmpty) return const ['Whole bed'];
+    return crops.map((crop) => crop.name).toList(growable: false);
+  }
+
+  List<String> _pestIssueOptions(int? bed, String cropName) {
+    final values = <String>{};
+    final crops = bed == null
+        ? const <VegetableDefinition>[]
+        : widget.bedCrops[bed] ?? const <VegetableDefinition>[];
+    for (final crop in crops) {
+      if (cropName != 'Whole bed' && crop.name != cropName) continue;
+      values.addAll(crop.commonPests);
+      values.addAll(crop.commonDiseases.take(3));
+    }
+    if (values.isEmpty) {
+      values.addAll(const [
+        'Aphids',
+        'Whitefly',
+        'Thrips',
+        'Mites',
+        'Caterpillars',
+        'Slugs / snails',
+        'Leaf spots',
+        'Powdery mildew',
+      ]);
+    }
+    return values.where((value) => value.trim().isNotEmpty).toList()..sort();
+  }
+
+  String _bedLabel(int bedNumber) {
+    for (final bed in widget.gardenBeds) {
+      if (bed.number == bedNumber) return bed.label;
+    }
+    return 'Bed $bedNumber';
+  }
+
+  int? _bedNumberForLabel(String value) {
+    for (final bed in widget.gardenBeds) {
+      if (bed.label == value) return bed.number;
+    }
+    return widget.gardenBeds.isEmpty ? null : widget.gardenBeds.first.number;
+  }
+
+  String _recheckLabel(int days) => switch (days) {
+        1 => 'Tomorrow',
+        2 => '2 days',
+        7 => '1 week',
+        _ => '3 days',
+      };
+}
+
+List<String> _sprayIssueOptions({
+  required String targetId,
+  required List<VegetableDefinition> crops,
+  required List<SprayIssueSuggestion> suggestions,
+}) {
+  final values = <String>{};
+
+  for (final suggestion in suggestions) {
+    final issue = suggestion.issue.trim();
+    if (issue.isNotEmpty) values.add(issue);
+  }
+
+  for (final crop in crops) {
+    final source = switch (targetId) {
+      'fungus' => crop.commonDiseases,
+      'maintain' => crop.maintenanceTips,
+      'prevent' => [
+          ...crop.commonPests.take(3),
+          ...crop.commonDiseases.take(3),
+          ...crop.preventativeTips.take(3),
+        ],
+      _ => crop.commonPests,
+    };
+
+    for (final item in source) {
+      final clean = item.trim();
+      if (clean.isNotEmpty) values.add(clean);
+    }
+  }
+
+  if (values.isEmpty) {
+    values.addAll(
+      switch (targetId) {
+        'fungus' => const [
+            'Powdery mildew',
+            'Leaf spot',
+            'Blight',
+            'Botrytis',
+            'Damping off',
+          ],
+        'maintain' => const [
+            'General plant health',
+            'Plant stress',
+            'Feeding support',
+            'Growth support',
+          ],
+        'prevent' => const [
+            'Preventative spray',
+            'Routine protection',
+            'Before disease pressure',
+            'Before pest pressure',
+          ],
+        _ => const [
+            'Aphids',
+            'Whitefly',
+            'Thrips',
+            'Mites',
+            'Caterpillars',
+            'Slugs / snails',
+          ],
+      },
+    );
+  }
+
+  final result = values.toList()..sort();
+  return result;
+}
+
+List<String> _sprayActionOptions(String targetId) => switch (targetId) {
+      'fungus' => const [
+          'Sprayed selected product',
+          'Removed affected leaves',
+          'Improved airflow',
+          'Stopped overhead watering',
+          'Observed only',
+        ],
+      'maintain' => const [
+          'Fed plants',
+          'Watered deeply',
+          'Mulched bed',
+          'Pruned / tidied plants',
+          'Observed only',
+        ],
+      'prevent' => const [
+          'Preventative spray applied',
+          'Checked leaves',
+          'Removed risky leaves',
+          'Improved airflow',
+          'Observed only',
+        ],
+      _ => const [
+          'Sprayed selected product',
+          'Hosed pests off',
+          'Hand removed pests',
+          'Removed affected leaves',
+          'Set trap / barrier',
+          'Observed only',
+        ],
+    };
+
+String _sprayNotesWithAction({
+  required String actionTaken,
+  required String notes,
+}) {
+  final cleanNotes = notes.trim();
+  if (cleanNotes.isEmpty) return 'Action: $actionTaken';
+  return 'Action: $actionTaken\n$cleanNotes';
+}
+
+class _SprayDropdownCard extends StatelessWidget {
+  const _SprayDropdownCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.options,
+    required this.emptyText,
+    required this.onSelected,
+  });
+
+  final String title;
+  final String value;
+  final IconData icon;
+  final List<String> options;
+  final String emptyText;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SmoothTap(
+      onTap: options.isEmpty ? null : () => _showOptions(context),
+      semanticsLabel: title,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: cardDecoration(),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: C.forestSoft,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, color: C.forest, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: C.muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    options.isEmpty ? emptyText : value,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: options.isEmpty ? C.muted : C.ink,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(CupertinoIcons.chevron_down, color: C.muted, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showOptions(BuildContext context) {
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (_) => CupertinoActionSheet(
+        title: Text(title),
+        message: Text('${options.length} choices available'),
+        actions: [
+          for (final option in options)
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.of(context).pop();
+                onSelected(option);
+              },
+              child: Text(option),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+      ),
     );
   }
 }
